@@ -25,6 +25,8 @@ ripe:
     db_username: "op://vault/item/username"
     db_password: "op://vault/item/password"
     rpki_api_key: "op://vault/item/rpki-api-key"
+    test_db_username: "op://vault/item/test-username"  # optional
+    test_db_password: "op://vault/item/test-password"  # optional
   sso_emails:
     - "admin@example.com"
   routes:
@@ -49,9 +51,11 @@ Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in 
 
 | Field | Used for |
 |-------|----------|
-| `db_username` | RIPE DB REST API username |
-| `db_password` | RIPE DB REST API password |
+| `db_username` | RIPE DB REST API username (production) |
+| `db_password` | RIPE DB REST API password (production) |
 | `rpki_api_key` | RIPE RPKI Management API key |
+| `test_db_username` | RIPE test DB username (optional, overrides `db_username` in test mode) |
+| `test_db_password` | RIPE test DB password (optional, overrides `db_password` in test mode) |
 
 References use the `op://vault/item/field` format. You must be signed in to the 1Password CLI (`op signin`) before running the tool.
 

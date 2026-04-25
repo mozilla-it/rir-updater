@@ -50,8 +50,13 @@ def _run(args, parser):
 
     if config.ripe:
         creds = config.ripe.credentials
+        use_test_env = not args.production
+        if use_test_env and creds.test_db_username and creds.test_db_password:
+            db_auth = get_ripe_db_auth(creds.test_db_username, creds.test_db_password)
+        else:
+            db_auth = get_ripe_db_auth(creds.db_username, creds.db_password)
         with RipeClient(
-            db_auth=get_ripe_db_auth(creds.db_username, creds.db_password),
+            db_auth=db_auth,
             rpki_key=get_ripe_rpki_key(creds.rpki_api_key),
             maintainer=config.ripe.maintainer,
             dry_run=not args.commit,

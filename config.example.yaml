@@ -4,6 +4,8 @@ ripe:
     db_username: "op://vault/item/username"
     db_password: "op://vault/item/password"
     rpki_api_key: "op://vault/item/rpki-api-key"
+    test_db_username: "op://vault/item/test-username"   # optional: overrides db_username for test DB
+    test_db_password: "op://vault/item/test-password"   # optional: overrides db_password for test DB
   sso_emails:
     - "admin1@example.com"
     - "admin2@example.com"

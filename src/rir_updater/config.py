@@ -77,6 +77,8 @@ class RipeCredentials(BaseModel):
     db_username: str
     db_password: str
     rpki_api_key: str
+    test_db_username: str | None = None
+    test_db_password: str | None = None
 
 
 class RipeConfig(BaseModel):
