@@ -340,10 +340,7 @@ One-time manual bootstrap required:
         except httpx.RequestError as e:
             raise ApiError(f"Network error fetching current ROAs: {e}") from e
         _raise_for_status(resp, "fetch current ROAs")
-        return {
-            (r["prefix"], r["asn"], r["maximalLength"])
-            for r in resp.json()
-        }
+        return {(r["prefix"], r["asn"], r["maximalLength"]) for r in resp.json()}
 
     def sync_roas(self, roas: list[ROA]) -> dict[str, int]:
         """Diff desired ROAs against current state and publish changes.
