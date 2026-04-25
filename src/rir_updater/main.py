@@ -66,6 +66,7 @@ def _run(args, parser):
                 if args.production:
                     parser.error("--setup-test cannot be used with --production")
                 client.setup_test_env(config.ripe.routes, config.ripe.sso_emails)
+                return
 
             for route in config.ripe.routes:
                 result = client.sync_route(route)

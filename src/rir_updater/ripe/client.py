@@ -93,7 +93,7 @@ class RipeClient:
             )
         except httpx.RequestError as e:
             raise ApiError(f"Network error fetching {obj_type} {key!r}: {e}") from e
-        if resp.status_code == 404:
+        if resp.status_code in (404, 400):
             return None
         _raise_for_status(resp, f"fetch {obj_type} {key!r} from production")
         return resp.json()
