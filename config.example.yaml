@@ -1,5 +1,9 @@
 ripe:
   maintainer: "MAINT-AS12345"
+  credentials:
+    db_username: "op://vault/item/username"
+    db_password: "op://vault/item/password"
+    rpki_api_key: "op://vault/item/rpki-api-key"
   sso_emails:
     - "admin1@example.com"
     - "admin2@example.com"

@@ -23,15 +23,15 @@ def read_op(reference: str) -> str:
         ) from e
 
 
-def get_ripe_db_auth() -> str:
+def get_ripe_db_auth(username_ref: str, password_ref: str) -> str:
     """Return base64(username:password) for the RIPE DB REST API Basic auth header."""
     import base64
 
-    username = read_op("op://Code/Mozilla - RIPE NNC/username")
-    password = read_op("op://Code/Mozilla - RIPE NNC/credential")
+    username = read_op(username_ref)
+    password = read_op(password_ref)
     return base64.b64encode(f"{username}:{password}".encode()).decode()
 
 
-def get_ripe_rpki_key() -> str:
+def get_ripe_rpki_key(key_ref: str) -> str:
     """Return the API key for the RIPE RPKI Management API."""
-    return read_op("op://Code/Mozilla - RIPE NNC/RPKI API Key")
+    return read_op(key_ref)

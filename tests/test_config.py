@@ -61,12 +61,23 @@ class TestROA:
 
 
 class TestLoadConfig:
+    CREDS = textwrap.dedent("""\
+        credentials:
+          db_username: "op://vault/item/username"
+          db_password: "op://vault/item/password"
+          rpki_api_key: "op://vault/item/rpki-api-key"
+    """)
+
     def test_load_valid_config(self, tmp_path: Path):
         cfg = tmp_path / "config.yaml"
         cfg.write_text(
             textwrap.dedent("""\
                 ripe:
                   maintainer: MAINT-AS64496
+                  credentials:
+                    db_username: "op://vault/item/username"
+                    db_password: "op://vault/item/password"
+                    rpki_api_key: "op://vault/item/rpki-api-key"
                   routes:
                     - prefix: "192.0.2.0/24"
                       origin: AS64496
@@ -85,7 +96,16 @@ class TestLoadConfig:
 
     def test_empty_ripe_section(self, tmp_path: Path):
         cfg = tmp_path / "config.yaml"
-        cfg.write_text("ripe:\n  maintainer: MAINT-AS64496\n")
+        cfg.write_text(
+            textwrap.dedent("""\
+                ripe:
+                  maintainer: MAINT-AS64496
+                  credentials:
+                    db_username: "op://vault/item/username"
+                    db_password: "op://vault/item/password"
+                    rpki_api_key: "op://vault/item/rpki-api-key"
+            """)
+        )
         config = load_config(cfg)
         assert config.ripe.routes == []
         assert config.ripe.roas == []
@@ -96,6 +116,10 @@ class TestLoadConfig:
             textwrap.dedent("""\
                 ripe:
                   maintainer: MAINT-AS64496
+                  credentials:
+                    db_username: "op://vault/item/username"
+                    db_password: "op://vault/item/password"
+                    rpki_api_key: "op://vault/item/rpki-api-key"
                   routes:
                     - prefix: "192.0.2.1/24"
                       origin: AS64496

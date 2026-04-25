@@ -49,9 +49,10 @@ def _run(args, parser):
     config = load_config(args.config)
 
     if config.ripe:
+        creds = config.ripe.credentials
         with RipeClient(
-            db_auth=get_ripe_db_auth(),
-            rpki_key=get_ripe_rpki_key(),
+            db_auth=get_ripe_db_auth(creds.db_username, creds.db_password),
+            rpki_key=get_ripe_rpki_key(creds.rpki_api_key),
             maintainer=config.ripe.maintainer,
             dry_run=not args.commit,
             use_test_env=not args.production,

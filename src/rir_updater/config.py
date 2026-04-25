@@ -73,8 +73,15 @@ class ROA(BaseModel):
         return v
 
 
+class RipeCredentials(BaseModel):
+    db_username: str
+    db_password: str
+    rpki_api_key: str
+
+
 class RipeConfig(BaseModel):
     maintainer: str
+    credentials: RipeCredentials
     sso_emails: list[str] = []
     routes: list[RouteObject] = []
     roas: list[ROA] = []
