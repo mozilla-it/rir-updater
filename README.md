@@ -21,6 +21,10 @@ Copy `config.example.yaml` and fill in your values:
 ```yaml
 ripe:
   maintainer: "MAINT-AS12345"
+  credentials:
+    db_username: "op://vault/item/username"
+    db_password: "op://vault/item/password"
+    rpki_api_key: "op://vault/item/rpki-api-key"
   sso_emails:
     - "admin@example.com"
   routes:
@@ -41,13 +45,15 @@ ripe:
 
 ## Credentials
 
-The following secrets are read from 1Password via the `op` CLI:
+Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in the config file specifies the 1Password reference for each secret:
 
-| Secret | Used for |
-|--------|----------|
-| `op://Code/Mozilla - RIPE NNC/username` | RIPE DB REST API (Basic auth) |
-| `op://Code/Mozilla - RIPE NNC/credential` | RIPE DB REST API (Basic auth) |
-| `op://Code/Mozilla - RIPE NNC/RPKI API Key` | RIPE RPKI Management API |
+| Field | Used for |
+|-------|----------|
+| `db_username` | RIPE DB REST API username |
+| `db_password` | RIPE DB REST API password |
+| `rpki_api_key` | RIPE RPKI Management API key |
+
+References use the `op://vault/item/field` format. You must be signed in to the 1Password CLI (`op signin`) before running the tool.
 
 ## Usage
 
