@@ -1,0 +1,18 @@
+ripe:
+  maintainer: "MAINT-AS12345"
+  sso_emails:
+    - "admin1@example.com"
+    - "admin2@example.com"
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"
+  roas:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      max_length: 24
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
