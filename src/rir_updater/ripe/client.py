@@ -255,7 +255,14 @@ One-time manual bootstrap required:
         print(f"{result}: mntner {self._maintainer}")
 
         for asn in sorted(asns):
-            result = self._replicate_object("aut-num", asn)
+            try:
+                result = self._replicate_object("aut-num", asn)
+            except ApiError:
+                print(
+                    f"warning: aut-num {asn} could not be created in test "
+                    f"(requires TEST-DBM-MNT auth — create it manually via the web UI)"
+                )
+                continue
             if result == "not-found":
                 print(
                     f"warning: aut-num {asn} not found in RIPE production "

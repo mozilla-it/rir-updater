@@ -79,7 +79,7 @@ uv run rir-updater config.yaml --setup-test
 
 The first time you use `--setup-test`, the mntner must be created manually via the RIPE web UI at [apps-test.db.ripe.net](https://apps-test.db.ripe.net) — the API does not allow creating the first mntner programmatically due to a circular person↔mntner dependency. The tool will print instructions if the mntner is not found.
 
-ASNs registered outside RIPE (e.g. ARIN/APNIC) cannot be automatically replicated and must be created manually in the test DB. `--setup-test` will warn when this is required.
+aut-num objects cannot be created in the test DB via the API — all aut-nums require authorization from `TEST-DBM-MNT`, which is restricted to RIPE staff. `--setup-test` will warn and continue if aut-num replication fails. You must create the aut-num manually via the web UI using your SSO session; however this may also fail if your account is not authorized as `TEST-DBM-MNT`. In practice, the test DB is most useful for validating mntner/person setup and dry-run output rather than full end-to-end route sync.
 
 `--setup-test` only replicates prerequisite objects. Run without `--setup-test` afterwards to sync route objects and ROAs.
 
