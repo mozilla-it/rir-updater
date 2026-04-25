@@ -35,12 +35,14 @@ ripe:
       description: "Example IPv4 prefix"
     - prefix: "2001:db8::/32"
       origin: "AS12345"
+      description: "Example IPv6 prefix"
   roas:
     - prefix: "192.0.2.0/24"
       origin: "AS12345"
       max_length: 24
     - prefix: "2001:db8::/32"
       origin: "AS12345"
+      max_length: 32
 ```
 
 `roas` is optional. If omitted, only route objects are synced. ROA sync only manages prefixes explicitly listed — other ROAs in the account are left untouched.
