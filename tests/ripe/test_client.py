@@ -168,9 +168,11 @@ class TestSyncROAs:
         client._rpki_http.post.assert_called_once()
 
     def test_deletes_stale_roa_for_managed_prefix(self, client):
-        # Current has a stale max_length for a prefix we manage; old entry should be deleted.
+        # Stale max_length for a managed prefix; old entry should be deleted.
         client._rpki_http.get.return_value = ok(
-            json_data=[{"prefix": "192.0.2.0/24", "asn": "AS64496", "maximalLength": 16}]
+            json_data=[
+                {"prefix": "192.0.2.0/24", "asn": "AS64496", "maximalLength": 16}
+            ]
         )
         client._rpki_http.post.return_value = ok()
 
@@ -193,7 +195,9 @@ class TestSyncROAs:
 
     def test_no_changes_skips_publish(self, client):
         client._rpki_http.get.return_value = ok(
-            json_data=[{"prefix": "192.0.2.0/24", "asn": "AS64496", "maximalLength": 24}]
+            json_data=[
+                {"prefix": "192.0.2.0/24", "asn": "AS64496", "maximalLength": 24}
+            ]
         )
 
         counts = client.sync_roas([IPV4_ROA])
