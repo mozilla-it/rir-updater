@@ -23,6 +23,26 @@ ripe:
     - prefix: "2001:db8::/32"
       origin: "AS12345"
 
+arin:
+  org_handle: "EXAMPLEORG-1"
+  credentials:
+    api_key: "op://vault/item/arin-api-key"
+    test_api_key: "op://vault/item/arin-ote-api-key"   # optional: overrides api_key for OTE
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"
+  roas:                           # optional
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      max_length: 24
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      max_length: 32
+
 radb:
   maintainer: "MAINT-AS12345"
   contact_email: "admin@example.com"

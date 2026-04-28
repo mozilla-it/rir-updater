@@ -1,6 +1,6 @@
 # rir-updater
 
-CLI tool for syncing route objects to RIPE NCC and RADb, and RPKI ROAs to RIPE.
+CLI tool for syncing route objects to RIPE NCC, ARIN, and RADb, and RPKI ROAs to RIPE and ARIN.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ uv sync
 
 ## Configuration
 
-Copy `config.example.yaml` and fill in your values. Both `ripe` and `radb` sections are optional — include only the registries you use.
+Copy `config.example.yaml` and fill in your values. All registry sections (`ripe`, `arin`, `radb`) are optional — include only the registries you use.
 
 ```yaml
 ripe:
@@ -29,6 +29,25 @@ ripe:
     test_db_password: "op://vault/item/test-password"  # optional
   sso_emails:
     - "admin@example.com"
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"
+  roas:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      max_length: 24
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      max_length: 32
+
+arin:
+  org_handle: "EXAMPLEORG-1"
+  credentials:
+    api_key: "op://vault/item/arin-api-key"
   routes:
     - prefix: "192.0.2.0/24"
       origin: "AS12345"
@@ -76,6 +95,15 @@ Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in 
 | `test_db_username` | RIPE test DB username (optional, overrides `db_username` in test mode) |
 | `test_db_password` | RIPE test DB password (optional, overrides `db_password` in test mode) |
 
+### ARIN
+
+| Field | Used for |
+|-------|----------|
+| `api_key` | ARIN API key for all IRR and RPKI requests (production) |
+| `test_api_key` | ARIN OTE API key (optional, overrides `api_key` in test mode) |
+
+The production API key must be linked to a POC with authority over your organization's resources. Create one at ARIN Online → Settings → Security Info → Manage API Keys. OTE keys are created the same way at `account.ote.arin.net`.
+
 ### RADb
 
 | Field | Used for |
@@ -89,20 +117,30 @@ References use the `op://vault/item/field` format. You must be signed in to the 
 ## Usage
 
 ```bash
-# Dry-run against the RIPE test database and RADb (default)
+# Dry-run all configured registries (test environments where applicable)
 uv run rir-updater config.yaml
 
-# Dry-run against RIPE production
-uv run rir-updater config.yaml --production
+# Dry-run a specific registry only
+uv run rir-updater config.yaml --registry arin
+uv run rir-updater config.yaml --registry ripe --registry radb
 
-# Apply changes to RIPE production and RADb
+# Apply changes to all registries in production
 uv run rir-updater config.yaml --production --commit
+
+# Apply changes to ARIN only (production)
+uv run rir-updater config.yaml --registry arin --production --commit
 
 # Set up the RIPE test database with objects replicated from production
 uv run rir-updater config.yaml --setup-test
+
+# Replicate ARIN production routes and ROAs into the OTE environment
+uv run rir-updater config.yaml --setup-ote           # dry-run
+uv run rir-updater config.yaml --setup-ote --commit  # apply
 ```
 
-RADb always runs against production — `--production` and `--setup-test` only affect the RIPE section.
+RADb always runs against production — `--production` only affects the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
+
+When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb.
 
 ### RIPE test database bootstrap
 
