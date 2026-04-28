@@ -27,6 +27,7 @@ arin:
   org_handle: "EXAMPLEORG-1"
   credentials:
     api_key: "op://vault/item/arin-api-key"
+    test_api_key: "op://vault/item/arin-ote-api-key"   # optional: overrides api_key for OTE
   routes:
     - prefix: "192.0.2.0/24"
       origin: "AS12345"

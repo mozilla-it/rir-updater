@@ -61,36 +61,43 @@ class TestUrls:
 
 
 class TestRouteBody:
-    def _parse_attrs(self, route: RouteObject, client: ArinClient) -> dict:
-        xml_str = client._route_body(route)
-        root = ET.fromstring(xml_str)
-        return {el.tag.split("}")[-1]: el.text for el in root}
+    def _parse_root(self, route: RouteObject, client: ArinClient) -> ET.Element:
+        return ET.fromstring(client._route_body(route))
+
+    def _find(self, root: ET.Element, local_name: str) -> ET.Element | None:
+        return root.find(f"{{{CORE_NS}}}{local_name}")
 
     def test_required_fields(self, client):
-        attrs = self._parse_attrs(IPV4_ROUTE, client)
-        assert attrs["orgHandle"] == "TESTORG-1"
-        assert attrs["originAS"] == "AS64496"
-        assert attrs["prefix"] == "192.0.2.0/24"
-        assert attrs["source"] == "ARIN"
+        root = self._parse_root(IPV4_ROUTE, client)
+        assert self._find(root, "orgHandle").text == "TESTORG-1"
+        assert self._find(root, "originAS").text == "AS64496"
+        assert self._find(root, "prefix").text == "192.0.2.0/24"
+        assert self._find(root, "source").text == "ARIN"
 
     def test_description_included_when_present(self, client):
         route = RouteObject(prefix="192.0.2.0/24", origin="AS64496", description="Test")
-        attrs = self._parse_attrs(route, client)
-        assert attrs["description"] == "Test"
+        root = self._parse_root(route, client)
+        desc_el = self._find(root, "description")
+        assert desc_el is not None
+        lines = desc_el.findall(f"{{{CORE_NS}}}line")
+        assert len(lines) == 1
+        assert lines[0].text == "Test"
+        assert lines[0].get("number") == "0"
 
-    def test_description_omitted_when_absent(self, client):
-        attrs = self._parse_attrs(IPV4_ROUTE, client)
-        assert "description" not in attrs
+    def test_description_empty_when_absent(self, client):
+        root = self._parse_root(IPV4_ROUTE, client)
+        desc_el = self._find(root, "description")
+        assert desc_el is not None
+        assert len(desc_el) == 0
 
     def test_uses_core_namespace(self, client):
-        xml_str = client._route_body(IPV4_ROUTE)
-        root = ET.fromstring(xml_str)
+        root = self._parse_root(IPV4_ROUTE, client)
         assert root.tag == f"{{{CORE_NS}}}route"
 
     def test_asn_uppercased(self, client):
         route = RouteObject(prefix="192.0.2.0/24", origin="as64496")
-        attrs = self._parse_attrs(route, client)
-        assert attrs["originAS"] == "AS64496"
+        root = self._parse_root(route, client)
+        assert self._find(root, "originAS").text == "AS64496"
 
 
 class TestSyncRoute:

@@ -89,8 +89,12 @@ class ArinClient:
         SubElement(root, f"{{{CORE_NS}}}orgHandle").text = self._org_handle
         SubElement(root, f"{{{CORE_NS}}}originAS").text = route.origin.upper()
         SubElement(root, f"{{{CORE_NS}}}prefix").text = route.prefix
-        if route.description:
-            SubElement(root, f"{{{CORE_NS}}}description").text = route.description
+        # description is required by schema; content uses <line number="N"> children
+        desc_el = SubElement(root, f"{{{CORE_NS}}}description")
+        for i, text in enumerate((route.description or "").splitlines()):
+            line_el = SubElement(desc_el, f"{{{CORE_NS}}}line")
+            line_el.set("number", str(i))
+            line_el.text = text
         SubElement(root, f"{{{CORE_NS}}}source").text = "ARIN"
         return ET.tostring(root, encoding="unicode")
 
@@ -154,6 +158,10 @@ class ArinClient:
                 max_len_text = _find_text(res_el, "maxLength")
                 if not start or not cidr:
                     continue
+                # ARIN returns IPv4 octets with leading zeros (e.g. "063.245.208.000");
+                # strip them before parsing — Python rejects leading zeros in IPv4.
+                if ":" not in start:
+                    start = ".".join(str(int(o)) for o in start.split("."))
                 # Normalize to canonical CIDR (handles IPv6 expansion, strict=False
                 # in case startAddress is a host address rather than network address).
                 prefix = str(ipaddress.ip_network(f"{start}/{cidr}", strict=False))
@@ -177,6 +185,12 @@ class ArinClient:
             add_el = SubElement(root, f"{{{RPKI_NS}}}roaSpecAdd")
             spec_el = SubElement(add_el, f"{{{RPKI_NS}}}roaSpec")
             SubElement(spec_el, f"{{{RPKI_NS}}}autoLink").text = "true"
+            # ROA name: only a-z A-Z 0-9 _ - space allowed; sanitize prefix chars.
+            raw_name = f"{prefix} {asn}"
+            name = "".join(c if c.isalnum() or c in "_ -" else "-" for c in raw_name)
+            while "--" in name:
+                name = name.replace("--", "-")
+            SubElement(spec_el, f"{{{RPKI_NS}}}name").text = name.strip("-")
             # ARIN <asNumber> takes the numeric value only, without the "AS" prefix.
             SubElement(spec_el, f"{{{RPKI_NS}}}asNumber").text = asn.removeprefix("AS")
             network, prefix_len = prefix.split("/")

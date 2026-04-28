@@ -123,6 +123,7 @@ class ArinCredentials(BaseModel):
     """1Password reference for ARIN API key. Resolved at runtime via `op read`."""
 
     api_key: str
+    test_api_key: str | None = None
 
 
 class ArinConfig(BaseModel):

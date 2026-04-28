@@ -99,9 +99,10 @@ Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in 
 
 | Field | Used for |
 |-------|----------|
-| `api_key` | ARIN API key for all IRR and RPKI requests |
+| `api_key` | ARIN API key for all IRR and RPKI requests (production) |
+| `test_api_key` | ARIN OTE API key (optional, overrides `api_key` in test mode) |
 
-The API key must be linked to a POC with authority over your organization's resources. Create one at ARIN Online → Settings → Security Info → Manage API Keys.
+The production API key must be linked to a POC with authority over your organization's resources. Create one at ARIN Online → Settings → Security Info → Manage API Keys. OTE keys are created the same way at `account.ote.arin.net`.
 
 ### RADb
 

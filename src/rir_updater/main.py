@@ -105,11 +105,17 @@ def _run(args, parser):
                 print(f"RIPE ROAs: {added} added, {deleted} deleted")
 
     if config.arin and should_run("arin"):
+        creds = config.arin.credentials
+        use_test_env = not args.production
+        if use_test_env and creds.test_api_key:
+            arin_api_key = get_arin_api_key(creds.test_api_key)
+        else:
+            arin_api_key = get_arin_api_key(creds.api_key)
         with ArinClient(
             org_handle=config.arin.org_handle,
-            api_key=get_arin_api_key(config.arin.credentials.api_key),
+            api_key=arin_api_key,
             dry_run=not args.commit,
-            use_test_env=not args.production,
+            use_test_env=use_test_env,
         ) as client:
             for route in config.arin.routes:
                 result = client.sync_route(route)
