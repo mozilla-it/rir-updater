@@ -98,6 +98,40 @@ class ArinClient:
         SubElement(root, f"{{{CORE_NS}}}source").text = "ARIN"
         return ET.tostring(root, encoding="unicode")
 
+    def list_routes(self) -> list[RouteObject]:
+        """Return all route objects for the org from the current environment."""
+        resp = self._http.get(
+            f"{self._base}/org/{self._org_handle}/routes", params=self._params()
+        )
+        if resp.status_code == 404:
+            return []
+        _raise_for_status(resp, "list ARIN routes")
+        routes = []
+        root = ET.fromstring(resp.text)
+        for ref in root.iter():
+            if ref.tag.split("}")[-1] != "routeRef":
+                continue
+            prefix = _find_text(ref, "prefix")
+            asn = _find_text(ref, "originAS")
+            if prefix and asn:
+                routes.append(RouteObject(prefix=prefix, origin=asn))
+        return routes
+
+    def list_roas(self) -> list[ROA]:
+        """Return all ROAs for the org from the current environment."""
+        current = self._get_current_roas()
+        result = []
+        for (prefix, asn, max_len), _ in current.items():
+            prefix_len = int(prefix.split("/")[1])
+            result.append(
+                ROA(
+                    prefix=prefix,
+                    origin=asn,
+                    max_length=max_len if max_len != prefix_len else None,
+                )
+            )
+        return result
+
     def _route_exists(self, route: RouteObject) -> bool:
         resp = self._http.get(self._route_url(route), params=self._params())
         return resp.status_code == 200

@@ -33,6 +33,11 @@ def main():
         help="Replicate required objects from production into the test database",
     )
     parser.add_argument(
+        "--setup-ote",
+        action="store_true",
+        help="Replicate ARIN production routes and ROAs into the OTE environment",
+    )
+    parser.add_argument(
         "--registry",
         action="append",
         choices=["ripe", "arin", "radb"],
@@ -74,6 +79,17 @@ def _run(args, parser):
             parser.error("--setup-test cannot be used with --production")
         if selected and "ripe" not in selected:
             parser.error("--setup-test requires ripe to be selected")
+
+    if args.setup_ote:
+        if args.production:
+            parser.error("--setup-ote cannot be used with --production")
+        if not config.arin:
+            parser.error("--setup-ote requires an arin section in config")
+        creds = config.arin.credentials
+        if not creds.test_api_key:
+            parser.error("--setup-ote requires arin.credentials.test_api_key in config")
+        _setup_arin_ote(config.arin, creds, args.commit)
+        return
 
     if config.ripe and should_run("ripe"):
         creds = config.ripe.credentials
@@ -145,6 +161,37 @@ def _run(args, parser):
             for route in config.radb.routes:
                 result = client.sync_route(route)
                 print(f"{result}: radb route {route.prefix} {route.origin}")
+
+
+def _setup_arin_ote(arin_config, creds, commit: bool) -> None:
+    """Replicate routes and ROAs from ARIN production into OTE."""
+    prod_key = get_arin_api_key(creds.api_key)
+    ote_key = get_arin_api_key(creds.test_api_key)
+
+    with ArinClient(
+        org_handle=arin_config.org_handle,
+        api_key=prod_key,
+        dry_run=False,
+        use_test_env=False,
+    ) as prod:
+        routes = prod.list_routes()
+        roas = prod.list_roas()
+
+    print(f"Found {len(routes)} routes and {len(roas)} ROAs in ARIN production")
+
+    with ArinClient(
+        org_handle=arin_config.org_handle,
+        api_key=ote_key,
+        dry_run=not commit,
+        use_test_env=True,
+    ) as ote:
+        for route in routes:
+            result = ote.sync_route(route)
+            print(f"{result}: arin route {route.prefix} {route.origin}")
+        if roas:
+            counts = ote.sync_roas(roas)
+            added, deleted = counts["added"], counts["deleted"]
+            print(f"ARIN OTE ROAs: {added} added, {deleted} deleted")
 
 
 if __name__ == "__main__":

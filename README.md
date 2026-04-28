@@ -132,6 +132,10 @@ uv run rir-updater config.yaml --registry arin --production --commit
 
 # Set up the RIPE test database with objects replicated from production
 uv run rir-updater config.yaml --setup-test
+
+# Replicate ARIN production routes and ROAs into the OTE environment
+uv run rir-updater config.yaml --setup-ote           # dry-run
+uv run rir-updater config.yaml --setup-ote --commit  # apply
 ```
 
 RADb always runs against production — `--production` only affects the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
