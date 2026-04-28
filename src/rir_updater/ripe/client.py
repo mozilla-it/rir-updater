@@ -315,28 +315,76 @@ One-time manual bootstrap required:
             }
         }
 
-    def _route_exists(self, route: RouteObject) -> bool:
+    def _get_existing_route(self, route: RouteObject) -> dict | None:
         key = self._route_key(route)
         resp = self._http.get(self._route_url(route, key))
-        return resp.status_code == 200
+        if resp.status_code == 404:
+            return None
+        _raise_for_status(resp, f"fetch route {key!r}")
+        return self._clean_body(resp.json())
+
+    def _merge_route_body(self, existing: dict, route: RouteObject) -> dict:
+        """Build a PUT body by updating managed fields while preserving the rest."""
+        obj_type = self._route_object_type(route.prefix)
+        managed = {
+            obj_type: route.prefix,
+            "origin": route.origin.upper(),
+            "mnt-by": self._maintainer,
+            "source": self._source,
+        }
+        if route.description:
+            managed["descr"] = route.description
+        existing_attrs = (
+            existing.get("objects", {})
+            .get("object", [{}])[0]
+            .get("attributes", {})
+            .get("attribute", [])
+        )
+        merged: list[dict] = []
+        seen: set[str] = set()
+        for attr in existing_attrs:
+            name = attr["name"]
+            if name in managed:
+                if name not in seen:
+                    merged.append({"name": name, "value": managed[name]})
+                    seen.add(name)
+            else:
+                merged.append({"name": name, "value": attr["value"]})
+        for name, value in managed.items():
+            if name not in seen:
+                merged.append({"name": name, "value": value})
+        return {
+            "objects": {
+                "object": [{"type": obj_type, "attributes": {"attribute": merged}}]
+            }
+        }
+
+    def delete_route(self, route: RouteObject) -> str:
+        """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run-delete'."""  # noqa: E501
+        if self._dry_run:
+            return "dry-run-delete"
+        key = self._route_key(route)
+        resp = self._http.delete(self._route_url(route, key))
+        if resp.status_code == 404:
+            return "not-found"
+        _raise_for_status(resp, f"delete route {key!r}")
+        return "deleted"
 
     def sync_route(self, route: RouteObject) -> str:
-        """Sync a route object. Returns 'created', 'updated', or 'dry-run'."""
-        key = self._route_key(route)
-        exists = self._route_exists(route)
+        """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
+        existing = self._get_existing_route(route)
 
         if self._dry_run:
-            action = "update" if exists else "create"
-            obj_type = self._route_object_type(route.prefix)
-            print(f"[dry-run] would {action} {obj_type} {key}")
-            return "dry-run"
+            return "dry-run-update" if existing is not None else "dry-run-create"
 
-        body = self._route_body(route)
-        if exists:
+        key = self._route_key(route)
+        if existing is not None:
+            body = self._merge_route_body(existing, route)
             resp = self._http.put(self._route_url(route, key), json=body)
             _raise_for_status(resp, f"update route {key!r}")
             return "updated"
         else:
+            body = self._route_body(route)
             resp = self._http.post(self._route_url(route), json=body)
             _raise_for_status(resp, f"create route {key!r}")
             return "created"
@@ -370,8 +418,6 @@ One-time manual bootstrap required:
         to_delete = current_managed - desired
 
         if self._dry_run:
-            for prefix, asn, max_len in desired:
-                print(f"[dry-run] would sync ROA {prefix} {asn} max={max_len}")
             return {"added": len(desired), "deleted": 0}
 
         if not to_add and not to_delete:

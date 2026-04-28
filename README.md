@@ -81,6 +81,27 @@ radb:
 
 `roas` is optional. If omitted, only route objects are synced. ROA sync only manages prefixes explicitly listed — other ROAs in the account are left untouched.
 
+### Deleting route objects
+
+Set `delete: true` on any route entry to remove it from the registry instead of syncing it:
+
+```yaml
+routes:
+  - prefix: "192.0.2.0/24"
+    origin: "AS12345"
+    delete: true
+```
+
+### Automatic RADb mirroring
+
+When a `radb` section is present in the config, every RIPE and ARIN route change (create, update, or delete) is automatically mirrored to RADb. You do not need to list the same prefix in the `radb.routes` section — duplicates are skipped automatically.
+
+Routes listed exclusively under `radb.routes` (with no corresponding RIPE/ARIN entry) are still synced to RADb directly.
+
+### Attribute preservation
+
+On update, only fields managed by this tool (`route`/`route6`, `origin`, `mnt-by`, `source`, `changed`, and optionally `descr`) are modified. All other attributes already present in the registry object (e.g. `remarks`, `admin-c`, `tech-c`) are preserved.
+
 ## Credentials
 
 Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in the config file specifies the 1Password reference for each secret:
