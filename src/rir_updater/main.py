@@ -5,8 +5,13 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from rir_updater.config import load_config
-from rir_updater.credentials import get_ripe_db_auth, get_ripe_rpki_key
+from rir_updater.credentials import (
+    get_radb_mntner_password,
+    get_ripe_db_auth,
+    get_ripe_rpki_key,
+)
 from rir_updater.exceptions import ApiError, CredentialError, RirUpdaterError
+from rir_updater.radb.client import RadbClient
 from rir_updater.ripe.client import RipeClient
 
 
@@ -75,6 +80,19 @@ def _run(args, parser):
             if config.ripe.roas:
                 counts = client.sync_roas(config.ripe.roas)
                 print(f"ROAs: {counts['added']} added, {counts['deleted']} deleted")
+
+    if config.radb:
+        with RadbClient(
+            maintainer=config.radb.maintainer,
+            mntner_password=get_radb_mntner_password(
+                config.radb.credentials.mntner_password
+            ),
+            contact_email=config.radb.contact_email,
+            dry_run=not args.commit,
+        ) as client:
+            for route in config.radb.routes:
+                result = client.sync_route(route)
+                print(f"{result}: radb route {route.prefix} {route.origin}")
 
 
 if __name__ == "__main__":

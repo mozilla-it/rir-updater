@@ -35,3 +35,8 @@ def get_ripe_db_auth(username_ref: str, password_ref: str) -> str:
 def get_ripe_rpki_key(key_ref: str) -> str:
     """Return the API key for the RIPE RPKI Management API."""
     return read_op(key_ref)
+
+
+def get_radb_mntner_password(password_ref: str) -> str:
+    """Return the RADb mntner password used for object-level authorization."""
+    return read_op(password_ref)

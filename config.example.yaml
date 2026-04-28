@@ -22,3 +22,16 @@ ripe:
       max_length: 24
     - prefix: "2001:db8::/32"
       origin: "AS12345"
+
+radb:
+  maintainer: "MAINT-AS12345"
+  contact_email: "admin@example.com"
+  credentials:
+    mntner_password: "op://vault/item/mntner-password"
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"

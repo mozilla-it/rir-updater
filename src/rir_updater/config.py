@@ -89,8 +89,20 @@ class RipeConfig(BaseModel):
     roas: list[ROA] = []
 
 
+class RadbCredentials(BaseModel):
+    mntner_password: str
+
+
+class RadbConfig(BaseModel):
+    maintainer: str
+    contact_email: str
+    credentials: RadbCredentials
+    routes: list[RouteObject] = []
+
+
 class Config(BaseModel):
     ripe: RipeConfig | None = None
+    radb: RadbConfig | None = None
 
 
 def load_config(path: Path) -> Config:
