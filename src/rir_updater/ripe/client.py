@@ -34,6 +34,13 @@ def _raise_for_status(resp: httpx.Response, context: str) -> None:
 
 
 class RipeClient:
+    """Client for the RIPE NCC DB REST API and RPKI Management API.
+
+    Uses two separate HTTP clients: one for the RIPE DB (route/mntner objects)
+    authenticated with HTTP Basic, and one for the RPKI API authenticated with
+    a bearer-style `ncc-api-authorization` header.
+    """
+
     def __init__(
         self,
         db_auth: str,

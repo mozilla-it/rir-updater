@@ -57,6 +57,8 @@ def _run(args, parser):
     if config.ripe:
         creds = config.ripe.credentials
         use_test_env = not args.production
+        # The test DB may have a separate account (RIPE test accounts are distinct
+        # from production). Fall back to production credentials if not configured.
         if use_test_env and creds.test_db_username and creds.test_db_password:
             db_auth = get_ripe_db_auth(creds.test_db_username, creds.test_db_password)
         else:

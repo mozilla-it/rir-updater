@@ -28,6 +28,8 @@ def _validate_asn(value: str) -> str:
 
 
 class RouteObject(BaseModel):
+    """A route or route6 object to be created/updated in an IRR database."""
+
     prefix: str
     origin: str
     description: str = ""
@@ -44,8 +46,11 @@ class RouteObject(BaseModel):
 
 
 class ROA(BaseModel):
+    """An RPKI Route Origin Authorization to be managed via the RIPE RPKI API."""
+
     prefix: str
     origin: str
+    # If omitted, max_length defaults to the prefix length (exact-match only).
     max_length: int | None = None
 
     @field_validator("prefix")
@@ -74,28 +79,40 @@ class ROA(BaseModel):
 
 
 class RipeCredentials(BaseModel):
+    """1Password references for RIPE credentials. Resolved at runtime via `op read`."""
+
     db_username: str
     db_password: str
     rpki_api_key: str
+    # When present, these override db_username/db_password in test mode.
     test_db_username: str | None = None
     test_db_password: str | None = None
 
 
 class RipeConfig(BaseModel):
+    """Configuration for the RIPE NCC registry (DB objects and RPKI ROAs)."""
+
     maintainer: str
     credentials: RipeCredentials
+    # SSO emails are used to set auth entries on the test mntner (--setup-test only).
     sso_emails: list[str] = []
     routes: list[RouteObject] = []
     roas: list[ROA] = []
 
 
 class RadbCredentials(BaseModel):
+    """1Password references for RADb credentials. Resolved at runtime via `op read`."""
+
+    # Portal credentials are used for HTTP Basic auth on all REST API requests.
     portal_username: str
     portal_password: str
+    # Mntner password is passed as ?password= for object-level RPSL authorization.
     mntner_password: str
 
 
 class RadbConfig(BaseModel):
+    """Configuration for the RADb registry (always runs against production)."""
+
     maintainer: str
     contact_email: str
     credentials: RadbCredentials

@@ -19,6 +19,13 @@ def _raise_for_status(resp: httpx.Response, context: str) -> None:
 
 
 class RadbClient:
+    """Client for the RADb REST API (https://api.radb.net/api).
+
+    All requests require HTTP Basic auth with RADb portal credentials.
+    Write operations additionally require the mntner password as a
+    `?password=` query parameter for RPSL object-level authorization.
+    """
+
     def __init__(
         self,
         maintainer: str,
@@ -51,6 +58,8 @@ class RadbClient:
         return "route6" if ":" in prefix else "route"
 
     def _route_key_url(self, route: RouteObject) -> str:
+        # RADb key URL uses three separate path segments: network/prefix_len/asn
+        # e.g. /api/radb/route6/2001:db8::/32/AS64496
         obj_type = self._object_type(route.prefix)
         network, prefix_len = route.prefix.split("/")
         asn = route.origin.upper()
@@ -62,6 +71,7 @@ class RadbClient:
 
     def _route_body(self, route: RouteObject) -> dict:
         obj_type = self._object_type(route.prefix)
+        # RADb requires a `changed:` attribute; `source:` must be "RADB".
         changed = f"{self._contact_email} {date.today().strftime('%Y%m%d')}"
         attrs = [
             {"name": obj_type, "value": route.prefix},
