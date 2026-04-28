@@ -93,81 +93,122 @@ def _run(args, parser):
         return
 
     summary = Summary(dry_run=not args.commit)
+    mirrored_prefixes: set[str] = set()
 
-    if config.ripe and should_run("ripe"):
-        label = "RIPE (production)" if args.production else "RIPE (test)"
-        creds = config.ripe.credentials
-        use_test_env = not args.production
-        # The test DB may have a separate account (RIPE test accounts are distinct
-        # from production). Fall back to production credentials if not configured.
-        if use_test_env and creds.test_db_username and creds.test_db_password:
-            db_auth = get_ripe_db_auth(creds.test_db_username, creds.test_db_password)
-        else:
-            db_auth = get_ripe_db_auth(creds.db_username, creds.db_password)
-        with RipeClient(
-            db_auth=db_auth,
-            rpki_key=get_ripe_rpki_key(creds.rpki_api_key),
-            maintainer=config.ripe.maintainer,
-            dry_run=not args.commit,
-            use_test_env=use_test_env,
-        ) as client:
-            if args.setup_test:
-                client.setup_test_env(config.ripe.routes, config.ripe.sso_emails)
-                return
-
-            summary.start_registry(label)
-            for route in config.ripe.routes:
-                result = client.sync_route(route)
-                summary.record_route(label, result, route.prefix, route.origin)
-
-            if config.ripe.roas:
-                counts = client.sync_roas(config.ripe.roas)
-                summary.record_roas(label, counts["added"], counts["deleted"])
-
-    if config.arin and should_run("arin"):
-        label = "ARIN (production)" if args.production else "ARIN (OTE)"
-        creds = config.arin.credentials
-        use_test_env = not args.production
-        if use_test_env and creds.test_api_key:
-            arin_api_key = get_arin_api_key(creds.test_api_key)
-        else:
-            arin_api_key = get_arin_api_key(creds.api_key)
-        with ArinClient(
-            org_handle=config.arin.org_handle,
-            api_key=arin_api_key,
-            dry_run=not args.commit,
-            use_test_env=use_test_env,
-        ) as client:
-            summary.start_registry(label)
-            for route in config.arin.routes:
-                if route.delete:
-                    result = client.delete_route(route)
-                else:
-                    result = client.sync_route(route)
-                summary.record_route(label, result, route.prefix, route.origin)
-
-            if config.arin.roas:
-                counts = client.sync_roas(config.arin.roas)
-                summary.record_roas(label, counts["added"], counts["deleted"])
-
-    if config.radb and should_run("radb"):
-        label = "RADb"
-        creds = config.radb.credentials
-        portal_username, portal_password = get_radb_portal_auth(
-            creds.portal_username, creds.portal_password
+    # Build RadbClient upfront — used for both explicit RADb routes and
+    # automatic mirroring of every RIPE/ARIN route change.
+    radb_client = None
+    if config.radb:
+        radb_creds = config.radb.credentials
+        radb_portal_u, radb_portal_p = get_radb_portal_auth(
+            radb_creds.portal_username, radb_creds.portal_password
         )
-        with RadbClient(
+        radb_client = RadbClient(
             maintainer=config.radb.maintainer,
-            portal_username=portal_username,
-            portal_password=portal_password,
-            mntner_password=get_radb_mntner_password(creds.mntner_password),
+            portal_username=radb_portal_u,
+            portal_password=radb_portal_p,
+            mntner_password=get_radb_mntner_password(radb_creds.mntner_password),
             contact_email=config.radb.contact_email,
             dry_run=not args.commit,
-        ) as client:
-            summary.start_registry(label)
+        )
+
+    try:
+        if config.ripe and should_run("ripe"):
+            label = "RIPE (production)" if args.production else "RIPE (test)"
+            creds = config.ripe.credentials
+            use_test_env = not args.production
+            # The test DB may have a separate account (RIPE test accounts are
+            # distinct from production). Fall back to production creds if not set.
+            if use_test_env and creds.test_db_username and creds.test_db_password:
+                db_auth = get_ripe_db_auth(
+                    creds.test_db_username, creds.test_db_password
+                )
+            else:
+                db_auth = get_ripe_db_auth(creds.db_username, creds.db_password)
+            with RipeClient(
+                db_auth=db_auth,
+                rpki_key=get_ripe_rpki_key(creds.rpki_api_key),
+                maintainer=config.ripe.maintainer,
+                dry_run=not args.commit,
+                use_test_env=use_test_env,
+            ) as client:
+                if args.setup_test:
+                    client.setup_test_env(config.ripe.routes, config.ripe.sso_emails)
+                    return
+
+                summary.start_registry(label)
+                for route in config.ripe.routes:
+                    if route.delete:
+                        result = client.delete_route(route)
+                    else:
+                        result = client.sync_route(route)
+                    summary.record_route(label, result, route.prefix, route.origin)
+                    if radb_client:
+                        radb_result = (
+                            radb_client.delete_route(route)
+                            if route.delete
+                            else radb_client.sync_route(route)
+                        )
+                        summary.record_route(
+                            "RADb", radb_result, route.prefix, route.origin
+                        )
+                        mirrored_prefixes.add(route.prefix)
+
+                if config.ripe.roas:
+                    counts = client.sync_roas(config.ripe.roas)
+                    summary.record_roas(label, counts["added"], counts["deleted"])
+
+        if config.arin and should_run("arin"):
+            label = "ARIN (production)" if args.production else "ARIN (OTE)"
+            creds = config.arin.credentials
+            use_test_env = not args.production
+            if use_test_env and creds.test_api_key:
+                arin_api_key = get_arin_api_key(creds.test_api_key)
+            else:
+                arin_api_key = get_arin_api_key(creds.api_key)
+            with ArinClient(
+                org_handle=config.arin.org_handle,
+                api_key=arin_api_key,
+                dry_run=not args.commit,
+                use_test_env=use_test_env,
+            ) as client:
+                summary.start_registry(label)
+                for route in config.arin.routes:
+                    if route.delete:
+                        result = client.delete_route(route)
+                    else:
+                        result = client.sync_route(route)
+                    summary.record_route(label, result, route.prefix, route.origin)
+                    if radb_client:
+                        radb_result = (
+                            radb_client.delete_route(route)
+                            if route.delete
+                            else radb_client.sync_route(route)
+                        )
+                        summary.record_route(
+                            "RADb", radb_result, route.prefix, route.origin
+                        )
+                        mirrored_prefixes.add(route.prefix)
+
+                if config.arin.roas:
+                    counts = client.sync_roas(config.arin.roas)
+                    summary.record_roas(label, counts["added"], counts["deleted"])
+
+        if radb_client and should_run("radb"):
+            summary.start_registry("RADb")
             for route in config.radb.routes:
-                result = client.sync_route(route)
-                summary.record_route(label, result, route.prefix, route.origin)
+                if route.prefix in mirrored_prefixes:
+                    continue  # already synced via mirroring
+                result = (
+                    radb_client.delete_route(route)
+                    if route.delete
+                    else radb_client.sync_route(route)
+                )
+                summary.record_route("RADb", result, route.prefix, route.origin)
+
+    finally:
+        if radb_client:
+            radb_client.close()
 
     summary.print_jira()
 

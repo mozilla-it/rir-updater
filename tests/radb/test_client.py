@@ -9,9 +9,31 @@ from rir_updater.radb.client import BASE_URL, RadbClient
 IPV4_ROUTE = RouteObject(prefix="192.0.2.0/24", origin="AS64496")
 IPV6_ROUTE = RouteObject(prefix="2001:db8::/32", origin="AS64496")
 
+_EXISTING_ROUTE = {
+    "objects": {
+        "object": [
+            {
+                "type": "route",
+                "attributes": {
+                    "attribute": [
+                        {"name": "route", "value": "192.0.2.0/24"},
+                        {"name": "origin", "value": "AS64496"},
+                        {"name": "mnt-by", "value": "MAINT-AS64496"},
+                        {"name": "changed", "value": "admin@example.com 20240101"},
+                        {"name": "source", "value": "RADB"},
+                    ]
+                },
+            }
+        ]
+    }
+}
 
-def ok(status_code: int = 200) -> MagicMock:
-    return MagicMock(status_code=status_code, is_error=False)
+
+def ok(status_code: int = 200, json_data=None) -> MagicMock:
+    m = MagicMock(status_code=status_code, is_error=False)
+    if json_data is not None:
+        m.json.return_value = json_data
+    return m
 
 
 def err(status_code: int, message: str = "error") -> MagicMock:
@@ -95,13 +117,46 @@ class TestSyncRoute:
         assert call_kwargs.kwargs["params"] == {"password": "testpass"}
 
     def test_updates_when_exists(self, client):
-        client._http.get.return_value = ok()
+        client._http.get.return_value = ok(json_data=_EXISTING_ROUTE)
         client._http.put.return_value = ok()
 
         result = client.sync_route(IPV4_ROUTE)
 
         assert result == "updated"
         client._http.put.assert_called_once()
+
+    def test_preserves_unmanaged_attributes_on_update(self, client):
+        existing = {
+            "objects": {
+                "object": [
+                    {
+                        "type": "route",
+                        "attributes": {
+                            "attribute": [
+                                {"name": "route", "value": "192.0.2.0/24"},
+                                {"name": "remarks", "value": "Keep this"},
+                                {"name": "origin", "value": "AS64496"},
+                                {"name": "mnt-by", "value": "MAINT-AS64496"},
+                                {"name": "changed", "value": "old@example.com 20200101"},  # noqa: E501
+                                {"name": "source", "value": "RADB"},
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+        client._http.get.return_value = ok(json_data=existing)
+        client._http.put.return_value = ok()
+
+        client.sync_route(IPV4_ROUTE)
+
+        put_body = client._http.put.call_args.kwargs["json"]
+        attrs = {
+            a["name"]: a["value"]
+            for a in put_body["objects"]["object"][0]["attributes"]["attribute"]
+        }
+        assert attrs["remarks"] == "Keep this"
+        assert attrs["source"] == "RADB"
 
     def test_api_error_raises(self, client):
         client._http.get.return_value = MagicMock(status_code=404, is_error=False)
@@ -127,3 +182,36 @@ class TestSyncRoute:
         result = client.sync_route(IPV4_ROUTE)
 
         assert result == "dry-run-update"
+
+
+class TestDeleteRoute:
+    def test_deletes_when_exists(self, client):
+        client._http.delete.return_value = ok()
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "deleted"
+        client._http.delete.assert_called_once()
+        call_kwargs = client._http.delete.call_args
+        assert call_kwargs.kwargs["params"] == {"password": "testpass"}
+
+    def test_not_found(self, client):
+        client._http.delete.return_value = MagicMock(status_code=404, is_error=False)
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "not-found"
+
+    def test_dry_run(self, client):
+        client._dry_run = True
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "dry-run-delete"
+        client._http.delete.assert_not_called()
+
+    def test_api_error_raises(self, client):
+        client._http.delete.return_value = err(403, "Authorization failed")
+
+        with pytest.raises(ApiError, match="Authorization failed"):
+            client.delete_route(IPV4_ROUTE)

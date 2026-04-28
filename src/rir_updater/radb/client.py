@@ -88,25 +88,81 @@ class RadbClient:
             }
         }
 
-    def _route_exists(self, route: RouteObject) -> bool:
+    def _get_existing_route(self, route: RouteObject) -> dict | None:
         resp = self._http.get(self._route_key_url(route))
-        return resp.status_code == 200
+        if resp.status_code == 404:
+            return None
+        _raise_for_status(resp, f"fetch radb route {route.prefix}")
+        return resp.json()
+
+    def _merge_route_body(self, existing: dict, route: RouteObject) -> dict:
+        """Build a PUT body by updating managed fields while preserving the rest."""
+        obj_type = self._object_type(route.prefix)
+        changed = f"{self._contact_email} {date.today().strftime('%Y%m%d')}"
+        managed = {
+            obj_type: route.prefix,
+            "origin": route.origin.upper(),
+            "mnt-by": self._maintainer,
+            "changed": changed,
+            "source": "RADB",
+        }
+        if route.description:
+            managed["descr"] = route.description
+        existing_attrs = (
+            existing.get("objects", {})
+            .get("object", [{}])[0]
+            .get("attributes", {})
+            .get("attribute", [])
+        )
+        merged: list[dict] = []
+        seen: set[str] = set()
+        for attr in existing_attrs:
+            name = attr["name"]
+            if name in managed:
+                if name not in seen:
+                    merged.append({"name": name, "value": managed[name]})
+                    seen.add(name)
+            else:
+                merged.append({"name": name, "value": attr["value"]})
+        for name, value in managed.items():
+            if name not in seen:
+                merged.append({"name": name, "value": value})
+        return {
+            "objects": {
+                "object": [{"type": obj_type, "attributes": {"attribute": merged}}]
+            }
+        }
+
+    def delete_route(self, route: RouteObject) -> str:
+        """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run-delete'."""  # noqa: E501
+        if self._dry_run:
+            return "dry-run-delete"
+        asn = route.origin.upper()
+        resp = self._http.delete(
+            self._route_key_url(route),
+            params={"password": self._mntner_password},
+        )
+        if resp.status_code == 404:
+            return "not-found"
+        _raise_for_status(resp, f"delete radb route {route.prefix} {asn}")
+        return "deleted"
 
     def sync_route(self, route: RouteObject) -> str:
         """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
-        exists = self._route_exists(route)
+        existing = self._get_existing_route(route)
 
         if self._dry_run:
-            return "dry-run-update" if exists else "dry-run-create"
+            return "dry-run-update" if existing is not None else "dry-run-create"
 
-        body = self._route_body(route)
         asn = route.origin.upper()
         params = {"password": self._mntner_password}
-        if exists:
+        if existing is not None:
+            body = self._merge_route_body(existing, route)
             resp = self._http.put(self._route_key_url(route), json=body, params=params)
             _raise_for_status(resp, f"update radb route {route.prefix} {asn}")
             return "updated"
         else:
+            body = self._route_body(route)
             resp = self._http.post(
                 self._route_base_url(route), json=body, params=params
             )

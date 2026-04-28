@@ -10,6 +10,17 @@ from rir_updater.exceptions import ApiError
 IPV4_ROUTE = RouteObject(prefix="192.0.2.0/24", origin="AS64496")
 IPV6_ROUTE = RouteObject(prefix="2001:db8::/32", origin="AS64496")
 
+_EXISTING_ROUTE_XML = (
+    f'<route xmlns="{CORE_NS}">'
+    f"<orgHandle>TESTORG-1</orgHandle>"
+    f"<originAS>AS64496</originAS>"
+    f"<prefix>192.0.2.0/24</prefix>"
+    f"<description/>"
+    f"<comment><line number=\"0\">Keep this</line></comment>"
+    f"<source>ARIN</source>"
+    f"</route>"
+)
+
 
 def ok(status_code: int = 200, text: str = "<route/>") -> MagicMock:
     return MagicMock(status_code=status_code, is_error=False, text=text)
@@ -113,13 +124,27 @@ class TestSyncRoute:
         assert call_kwargs.kwargs["params"] == {"apikey": "test-api-key"}
 
     def test_updates_when_exists(self, client):
-        client._http.get.return_value = ok()
+        client._http.get.return_value = ok(text=_EXISTING_ROUTE_XML)
         client._http.put.return_value = ok()
 
         result = client.sync_route(IPV4_ROUTE)
 
         assert result == "updated"
         client._http.put.assert_called_once()
+
+    def test_preserves_unmanaged_attributes_on_update(self, client):
+        client._http.get.return_value = ok(text=_EXISTING_ROUTE_XML)
+        client._http.put.return_value = ok()
+
+        client.sync_route(IPV4_ROUTE)
+
+        put_xml = client._http.put.call_args.kwargs["content"]
+        root = ET.fromstring(put_xml)
+        comment_el = root.find(f"{{{CORE_NS}}}comment")
+        assert comment_el is not None
+        line_el = comment_el.find(f"{{{CORE_NS}}}line")
+        assert line_el is not None
+        assert line_el.text == "Keep this"
 
     def test_post_uses_key_url(self, client):
         client._http.get.return_value = MagicMock(status_code=404, is_error=False)
@@ -221,3 +246,36 @@ class TestSyncRoas:
 
         assert result["added"] == 1
         client._http.post.assert_not_called()
+
+
+class TestDeleteRoute:
+    def test_deletes_when_exists(self, client):
+        client._http.delete.return_value = ok()
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "deleted"
+        client._http.delete.assert_called_once()
+        call_kwargs = client._http.delete.call_args
+        assert call_kwargs.kwargs["params"] == {"apikey": "test-api-key"}
+
+    def test_not_found(self, client):
+        client._http.delete.return_value = MagicMock(status_code=404, is_error=False)
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "not-found"
+
+    def test_dry_run(self, client):
+        client._dry_run = True
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "dry-run-delete"
+        client._http.delete.assert_not_called()
+
+    def test_api_error_raises(self, client):
+        client._http.delete.return_value = err(403, "Unauthorized")
+
+        with pytest.raises(ApiError, match="Unauthorized"):
+            client.delete_route(IPV4_ROUTE)

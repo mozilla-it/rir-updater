@@ -51,6 +51,24 @@ IPV4_ROUTE = RouteObject(prefix="192.0.2.0/24", origin="AS64496")
 IPV6_ROUTE = RouteObject(prefix="2001:db8::/32", origin="AS64496")
 IPV4_ROA = ROA(prefix="192.0.2.0/24", origin="AS64496", max_length=24)
 
+_EXISTING_ROUTE = {
+    "objects": {
+        "object": [
+            {
+                "type": "route",
+                "attributes": {
+                    "attribute": [
+                        {"name": "route", "value": "192.0.2.0/24"},
+                        {"name": "origin", "value": "AS64496"},
+                        {"name": "mnt-by", "value": "MAINT-AS64496"},
+                        {"name": "source", "value": "TEST"},
+                    ]
+                },
+            }
+        ]
+    }
+}
+
 
 class TestRouteHelpers:
     def test_object_type_ipv4(self, client):
@@ -119,13 +137,48 @@ class TestSyncRoute:
         client._http.post.assert_called_once()
 
     def test_updates_when_exists(self, client):
-        client._http.get.return_value = MagicMock(status_code=200, is_error=False)
+        client._http.get.return_value = ok(json_data=_EXISTING_ROUTE)
         client._http.put.return_value = ok()
 
         result = client.sync_route(IPV4_ROUTE)
 
         assert result == "updated"
         client._http.put.assert_called_once()
+
+    def test_preserves_unmanaged_attributes_on_update(self, client):
+        existing = {
+            "objects": {
+                "object": [
+                    {
+                        "type": "route",
+                        "attributes": {
+                            "attribute": [
+                                {"name": "route", "value": "192.0.2.0/24"},
+                                {"name": "remarks", "value": "Keep this"},
+                                {"name": "origin", "value": "AS64496"},
+                                {"name": "mnt-by", "value": "MAINT-AS64496"},
+                                {"name": "source", "value": "TEST"},
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+        route = RouteObject(
+            prefix="192.0.2.0/24", origin="AS64496", description="New desc"
+        )
+        client._http.get.return_value = ok(json_data=existing)
+        client._http.put.return_value = ok()
+
+        client.sync_route(route)
+
+        put_body = client._http.put.call_args.kwargs["json"]
+        attrs = {
+            a["name"]: a["value"]
+            for a in put_body["objects"]["object"][0]["attributes"]["attribute"]
+        }
+        assert attrs["remarks"] == "Keep this"
+        assert attrs["descr"] == "New desc"
 
     def test_api_error_raises(self, client):
         client._http.get.return_value = MagicMock(status_code=404, is_error=False)
@@ -154,6 +207,40 @@ class TestSyncRoute:
         result = client.sync_route(IPV4_ROUTE)
 
         assert result == "dry-run-update"
+
+
+class TestDeleteRoute:
+    def test_deletes_when_exists(self, client):
+        client._http.delete.return_value = ok()
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "deleted"
+        client._http.delete.assert_called_once()
+
+    def test_not_found(self, client):
+        client._http.delete.return_value = MagicMock(status_code=404, is_error=False)
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "not-found"
+
+    def test_dry_run(self, client):
+        client._dry_run = True
+
+        result = client.delete_route(IPV4_ROUTE)
+
+        assert result == "dry-run-delete"
+        client._http.delete.assert_not_called()
+
+    def test_api_error_raises(self, client):
+        client._http.delete.return_value = err(
+            403,
+            {"errormessages": {"errormessage": [{"text": "Forbidden"}]}},
+        )
+
+        with pytest.raises(ApiError, match="Forbidden"):
+            client.delete_route(IPV4_ROUTE)
 
 
 class TestSyncROAs:

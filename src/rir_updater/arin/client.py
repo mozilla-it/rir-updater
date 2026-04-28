@@ -132,9 +132,34 @@ class ArinClient:
             )
         return result
 
-    def _route_exists(self, route: RouteObject) -> bool:
+    def _get_existing_route(self, route: RouteObject) -> str | None:
         resp = self._http.get(self._route_url(route), params=self._params())
-        return resp.status_code == 200
+        if resp.status_code == 404:
+            return None
+        _raise_for_status(resp, f"fetch arin route {route.prefix}")
+        return resp.text
+
+    def _merge_route_body(self, existing_xml: str, route: RouteObject) -> str:
+        """Build a PUT body by updating managed fields while preserving the rest."""
+        root = ET.fromstring(existing_xml)
+        managed_tags = {
+            "orgHandle": self._org_handle,
+            "originAS": route.origin.upper(),
+            "prefix": route.prefix,
+            "source": "ARIN",
+        }
+        for child in root:
+            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            if tag in managed_tags:
+                child.text = managed_tags[tag]
+            elif tag == "description":
+                for item in list(child):
+                    child.remove(item)
+                for i, text in enumerate((route.description or "").splitlines()):
+                    line_el = SubElement(child, f"{{{CORE_NS}}}line")
+                    line_el.set("number", str(i))
+                    line_el.text = text
+        return ET.tostring(root, encoding="unicode")
 
     def delete_route(self, route: RouteObject) -> str:
         """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run-delete'."""  # noqa: E501
@@ -150,19 +175,20 @@ class ArinClient:
 
     def sync_route(self, route: RouteObject) -> str:
         """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
-        exists = self._route_exists(route)
+        existing = self._get_existing_route(route)
 
         if self._dry_run:
-            return "dry-run-update" if exists else "dry-run-create"
+            return "dry-run-update" if existing is not None else "dry-run-create"
 
-        asn = route.origin.upper()
-        body = self._route_body(route)
         url = self._route_url(route)
-        if exists:
+        asn = route.origin.upper()
+        if existing is not None:
+            body = self._merge_route_body(existing, route)
             resp = self._http.put(url, params=self._params(), content=body)
             _raise_for_status(resp, f"update arin route {route.prefix} {asn}")
             return "updated"
         else:
+            body = self._route_body(route)
             # Unlike RIPE, ARIN POST uses the key URL (not the collection URL).
             resp = self._http.post(url, params=self._params(), content=body)
             _raise_for_status(resp, f"create arin route {route.prefix} {asn}")
