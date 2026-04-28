@@ -37,6 +37,11 @@ def get_ripe_rpki_key(key_ref: str) -> str:
     return read_op(key_ref)
 
 
+def get_radb_portal_auth(username_ref: str, password_ref: str) -> tuple[str, str]:
+    """Return (username, password) for the RADb portal HTTP Basic auth."""
+    return read_op(username_ref), read_op(password_ref)
+
+
 def get_radb_mntner_password(password_ref: str) -> str:
     """Return the RADb mntner password used for object-level authorization."""
     return read_op(password_ref)

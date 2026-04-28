@@ -90,6 +90,8 @@ class RipeConfig(BaseModel):
 
 
 class RadbCredentials(BaseModel):
+    portal_username: str
+    portal_password: str
     mntner_password: str
 
 

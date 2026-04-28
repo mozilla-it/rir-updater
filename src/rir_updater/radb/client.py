@@ -22,6 +22,8 @@ class RadbClient:
     def __init__(
         self,
         maintainer: str,
+        portal_username: str,
+        portal_password: str,
         mntner_password: str,
         contact_email: str,
         dry_run: bool = False,
@@ -32,6 +34,7 @@ class RadbClient:
         self._dry_run = dry_run
         self._http = httpx.Client(
             headers={"Accept": "application/json"},
+            auth=(portal_username, portal_password),
             timeout=30,
         )
 

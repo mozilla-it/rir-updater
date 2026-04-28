@@ -48,6 +48,8 @@ radb:
   maintainer: "MAINT-AS12345"
   contact_email: "admin@example.com"
   credentials:
+    portal_username: "op://vault/item/portal-username"
+    portal_password: "op://vault/item/portal-password"
     mntner_password: "op://vault/item/mntner-password"
   routes:
     - prefix: "192.0.2.0/24"
@@ -78,6 +80,8 @@ Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in 
 
 | Field | Used for |
 |-------|----------|
+| `portal_username` | RADb portal email address (HTTP Basic auth) |
+| `portal_password` | RADb portal password (HTTP Basic auth) |
 | `mntner_password` | RADb mntner password for object-level authorization |
 
 References use the `op://vault/item/field` format. You must be signed in to the 1Password CLI (`op signin`) before running the tool.

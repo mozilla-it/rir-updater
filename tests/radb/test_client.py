@@ -26,6 +26,8 @@ def client():
     with patch("rir_updater.radb.client.httpx.Client"):
         c = RadbClient(
             maintainer="MAINT-AS64496",
+            portal_username="user@example.com",
+            portal_password="portalpass",
             mntner_password="testpass",
             contact_email="admin@example.com",
         )

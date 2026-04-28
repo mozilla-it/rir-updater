@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from rir_updater.config import load_config
 from rir_updater.credentials import (
     get_radb_mntner_password,
+    get_radb_portal_auth,
     get_ripe_db_auth,
     get_ripe_rpki_key,
 )
@@ -82,11 +83,15 @@ def _run(args, parser):
                 print(f"ROAs: {counts['added']} added, {counts['deleted']} deleted")
 
     if config.radb:
+        creds = config.radb.credentials
+        portal_username, portal_password = get_radb_portal_auth(
+            creds.portal_username, creds.portal_password
+        )
         with RadbClient(
             maintainer=config.radb.maintainer,
-            mntner_password=get_radb_mntner_password(
-                config.radb.credentials.mntner_password
-            ),
+            portal_username=portal_username,
+            portal_password=portal_password,
+            mntner_password=get_radb_mntner_password(creds.mntner_password),
             contact_email=config.radb.contact_email,
             dry_run=not args.commit,
         ) as client:

@@ -27,6 +27,8 @@ radb:
   maintainer: "MAINT-AS12345"
   contact_email: "admin@example.com"
   credentials:
+    portal_username: "op://vault/item/portal-username"
+    portal_password: "op://vault/item/portal-password"
     mntner_password: "op://vault/item/mntner-password"
   routes:
     - prefix: "192.0.2.0/24"
