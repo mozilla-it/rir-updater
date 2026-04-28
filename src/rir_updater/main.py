@@ -16,6 +16,7 @@ from rir_updater.credentials import (
 from rir_updater.exceptions import ApiError, CredentialError, RirUpdaterError
 from rir_updater.radb.client import RadbClient
 from rir_updater.ripe.client import RipeClient
+from rir_updater.summary import Summary
 
 
 def main():
@@ -91,7 +92,10 @@ def _run(args, parser):
         _setup_arin_ote(config.arin, creds, args.commit)
         return
 
+    summary = Summary(dry_run=not args.commit)
+
     if config.ripe and should_run("ripe"):
+        label = "RIPE (production)" if args.production else "RIPE (test)"
         creds = config.ripe.credentials
         use_test_env = not args.production
         # The test DB may have a separate account (RIPE test accounts are distinct
@@ -111,16 +115,17 @@ def _run(args, parser):
                 client.setup_test_env(config.ripe.routes, config.ripe.sso_emails)
                 return
 
+            summary.start_registry(label)
             for route in config.ripe.routes:
                 result = client.sync_route(route)
-                print(f"{result}: ripe route {route.prefix} {route.origin}")
+                summary.record_route(label, result, route.prefix, route.origin)
 
             if config.ripe.roas:
                 counts = client.sync_roas(config.ripe.roas)
-                added, deleted = counts["added"], counts["deleted"]
-                print(f"RIPE ROAs: {added} added, {deleted} deleted")
+                summary.record_roas(label, counts["added"], counts["deleted"])
 
     if config.arin and should_run("arin"):
+        label = "ARIN (production)" if args.production else "ARIN (OTE)"
         creds = config.arin.credentials
         use_test_env = not args.production
         if use_test_env and creds.test_api_key:
@@ -133,19 +138,20 @@ def _run(args, parser):
             dry_run=not args.commit,
             use_test_env=use_test_env,
         ) as client:
+            summary.start_registry(label)
             for route in config.arin.routes:
                 if route.delete:
                     result = client.delete_route(route)
                 else:
                     result = client.sync_route(route)
-                print(f"{result}: arin route {route.prefix} {route.origin}")
+                summary.record_route(label, result, route.prefix, route.origin)
 
             if config.arin.roas:
                 counts = client.sync_roas(config.arin.roas)
-                added, deleted = counts["added"], counts["deleted"]
-                print(f"ARIN ROAs: {added} added, {deleted} deleted")
+                summary.record_roas(label, counts["added"], counts["deleted"])
 
     if config.radb and should_run("radb"):
+        label = "RADb"
         creds = config.radb.credentials
         portal_username, portal_password = get_radb_portal_auth(
             creds.portal_username, creds.portal_password
@@ -158,9 +164,12 @@ def _run(args, parser):
             contact_email=config.radb.contact_email,
             dry_run=not args.commit,
         ) as client:
+            summary.start_registry(label)
             for route in config.radb.routes:
                 result = client.sync_route(route)
-                print(f"{result}: radb route {route.prefix} {route.origin}")
+                summary.record_route(label, result, route.prefix, route.origin)
+
+    summary.print_jira()
 
 
 def _setup_arin_ote(arin_config, creds, commit: bool) -> None:

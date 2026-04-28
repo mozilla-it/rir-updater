@@ -321,15 +321,12 @@ One-time manual bootstrap required:
         return resp.status_code == 200
 
     def sync_route(self, route: RouteObject) -> str:
-        """Sync a route object. Returns 'created', 'updated', or 'dry-run'."""
+        """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
         key = self._route_key(route)
         exists = self._route_exists(route)
 
         if self._dry_run:
-            action = "update" if exists else "create"
-            obj_type = self._route_object_type(route.prefix)
-            print(f"[dry-run] would {action} {obj_type} {key}")
-            return "dry-run"
+            return "dry-run-update" if exists else "dry-run-create"
 
         body = self._route_body(route)
         if exists:
@@ -370,8 +367,6 @@ One-time manual bootstrap required:
         to_delete = current_managed - desired
 
         if self._dry_run:
-            for prefix, asn, max_len in desired:
-                print(f"[dry-run] would sync ROA {prefix} {asn} max={max_len}")
             return {"added": len(desired), "deleted": 0}
 
         if not to_add and not to_delete:

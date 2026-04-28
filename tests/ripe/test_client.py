@@ -143,17 +143,17 @@ class TestSyncRoute:
 
         result = client.sync_route(IPV4_ROUTE)
 
-        assert result == "dry-run"
+        assert result == "dry-run-create"
         client._http.post.assert_not_called()
         client._http.put.assert_not_called()
 
-    def test_dry_run_shows_update_when_exists(self, client, capsys):
+    def test_dry_run_returns_update_when_exists(self, client):
         client._dry_run = True
         client._http.get.return_value = MagicMock(status_code=200, is_error=False)
 
-        client.sync_route(IPV4_ROUTE)
+        result = client.sync_route(IPV4_ROUTE)
 
-        assert "update" in capsys.readouterr().out
+        assert result == "dry-run-update"
 
 
 class TestSyncROAs:

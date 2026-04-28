@@ -137,30 +137,25 @@ class ArinClient:
         return resp.status_code == 200
 
     def delete_route(self, route: RouteObject) -> str:
-        """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run'."""
-        obj_type = "route6" if ":" in route.prefix else "route"
-        asn = route.origin.upper()
+        """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run-delete'."""  # noqa: E501
         if self._dry_run:
-            print(f"[dry-run] would delete arin {obj_type} {route.prefix} {asn}")
-            return "dry-run"
+            return "dry-run-delete"
         url = self._route_url(route)
         resp = self._http.delete(url, params=self._params())
         if resp.status_code == 404:
             return "not-found"
+        asn = route.origin.upper()
         _raise_for_status(resp, f"delete arin route {route.prefix} {asn}")
         return "deleted"
 
     def sync_route(self, route: RouteObject) -> str:
-        """Sync a route object. Returns 'created', 'updated', or 'dry-run'."""
+        """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
         exists = self._route_exists(route)
-        obj_type = "route6" if ":" in route.prefix else "route"
-        asn = route.origin.upper()
 
         if self._dry_run:
-            action = "update" if exists else "create"
-            print(f"[dry-run] would {action} arin {obj_type} {route.prefix} {asn}")
-            return "dry-run"
+            return "dry-run-update" if exists else "dry-run-create"
 
+        asn = route.origin.upper()
         body = self._route_body(route)
         url = self._route_url(route)
         if exists:
@@ -268,10 +263,6 @@ class ArinClient:
         to_delete_handles = [current_managed[k] for k in to_delete_keys]
 
         if self._dry_run:
-            for prefix, asn, max_len in to_add:
-                print(f"[dry-run] would add arin ROA {prefix} {asn} max={max_len}")
-            for prefix, asn, max_len in to_delete_keys:
-                print(f"[dry-run] would delete arin ROA {prefix} {asn} max={max_len}")
             return {"added": len(to_add), "deleted": len(to_delete_keys)}
 
         if not to_add and not to_delete_handles:

@@ -93,17 +93,14 @@ class RadbClient:
         return resp.status_code == 200
 
     def sync_route(self, route: RouteObject) -> str:
-        """Sync a route object. Returns 'created', 'updated', or 'dry-run'."""
+        """Sync a route object. Returns 'created', 'updated', or a dry-run variant."""
         exists = self._route_exists(route)
-        asn = route.origin.upper()
-        obj_type = self._object_type(route.prefix)
 
         if self._dry_run:
-            action = "update" if exists else "create"
-            print(f"[dry-run] would {action} radb {obj_type} {route.prefix} {asn}")
-            return "dry-run"
+            return "dry-run-update" if exists else "dry-run-create"
 
         body = self._route_body(route)
+        asn = route.origin.upper()
         params = {"password": self._mntner_password}
         if exists:
             resp = self._http.put(self._route_key_url(route), json=body, params=params)
