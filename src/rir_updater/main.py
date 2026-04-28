@@ -118,7 +118,10 @@ def _run(args, parser):
             use_test_env=use_test_env,
         ) as client:
             for route in config.arin.routes:
-                result = client.sync_route(route)
+                if route.delete:
+                    result = client.delete_route(route)
+                else:
+                    result = client.sync_route(route)
                 print(f"{result}: arin route {route.prefix} {route.origin}")
 
             if config.arin.roas:

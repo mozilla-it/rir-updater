@@ -102,6 +102,20 @@ class ArinClient:
         resp = self._http.get(self._route_url(route), params=self._params())
         return resp.status_code == 200
 
+    def delete_route(self, route: RouteObject) -> str:
+        """Delete a route object. Returns 'deleted', 'not-found', or 'dry-run'."""
+        obj_type = "route6" if ":" in route.prefix else "route"
+        asn = route.origin.upper()
+        if self._dry_run:
+            print(f"[dry-run] would delete arin {obj_type} {route.prefix} {asn}")
+            return "dry-run"
+        url = self._route_url(route)
+        resp = self._http.delete(url, params=self._params())
+        if resp.status_code == 404:
+            return "not-found"
+        _raise_for_status(resp, f"delete arin route {route.prefix} {asn}")
+        return "deleted"
+
     def sync_route(self, route: RouteObject) -> str:
         """Sync a route object. Returns 'created', 'updated', or 'dry-run'."""
         exists = self._route_exists(route)
@@ -179,7 +193,7 @@ class ArinClient:
         for handle in to_delete_handles:
             del_el = SubElement(root, f"{{{RPKI_NS}}}roaSpecDelete")
             handle_el = SubElement(del_el, f"{{{RPKI_NS}}}roaHandle")
-            handle_el.set("autolink", "true")
+            handle_el.set("autoLink", "true")
             handle_el.text = handle
         for prefix, asn, max_len in to_add:
             add_el = SubElement(root, f"{{{RPKI_NS}}}roaSpecAdd")
@@ -208,19 +222,23 @@ class ArinClient:
         Only ROAs whose prefix appears in the config are managed. ROAs for
         other prefixes in the account are left untouched.
         """
-        desired = {self._roa_key(r) for r in roas}
+        # Entries with delete=True are scoped (managed) but excluded from desired,
+        # so their existing ROAs get removed by the diff.
+        desired = {self._roa_key(r) for r in roas if not r.delete}
         managed_prefixes = {r.prefix for r in roas}
-
-        if self._dry_run:
-            for prefix, asn, max_len in desired:
-                print(f"[dry-run] would sync arin ROA {prefix} {asn} max={max_len}")
-            return {"added": len(desired), "deleted": 0}
 
         current = self._get_current_roas()
         current_managed = {k: v for k, v in current.items() if k[0] in managed_prefixes}
         to_add = desired - set(current_managed.keys())
         to_delete_keys = set(current_managed.keys()) - desired
         to_delete_handles = [current_managed[k] for k in to_delete_keys]
+
+        if self._dry_run:
+            for prefix, asn, max_len in to_add:
+                print(f"[dry-run] would add arin ROA {prefix} {asn} max={max_len}")
+            for prefix, asn, max_len in to_delete_keys:
+                print(f"[dry-run] would delete arin ROA {prefix} {asn} max={max_len}")
+            return {"added": len(to_add), "deleted": len(to_delete_keys)}
 
         if not to_add and not to_delete_handles:
             return {"added": 0, "deleted": 0}

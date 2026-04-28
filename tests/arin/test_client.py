@@ -214,10 +214,10 @@ class TestSyncRoas:
 
     def test_dry_run_does_not_call_post(self, client):
         client._dry_run = True
+        client._http.get.return_value.status_code = 404
         roas = [ROA(prefix="192.0.2.0/24", origin="AS64496", max_length=24)]
 
         result = client.sync_roas(roas)
 
         assert result["added"] == 1
-        client._http.get.assert_not_called()
         client._http.post.assert_not_called()

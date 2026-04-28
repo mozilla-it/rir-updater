@@ -33,6 +33,7 @@ class RouteObject(BaseModel):
     prefix: str
     origin: str
     description: str = ""
+    delete: bool = False
 
     @field_validator("prefix")
     @classmethod
@@ -52,6 +53,7 @@ class ROA(BaseModel):
     origin: str
     # If omitted, max_length defaults to the prefix length (exact-match only).
     max_length: int | None = None
+    delete: bool = False
 
     @field_validator("prefix")
     @classmethod
