@@ -119,9 +119,25 @@ class RadbConfig(BaseModel):
     routes: list[RouteObject] = []
 
 
+class ArinCredentials(BaseModel):
+    """1Password reference for ARIN API key. Resolved at runtime via `op read`."""
+
+    api_key: str
+
+
+class ArinConfig(BaseModel):
+    """Configuration for the ARIN registry (IRR route objects and RPKI ROAs)."""
+
+    org_handle: str
+    credentials: ArinCredentials
+    routes: list[RouteObject] = []
+    roas: list[ROA] = []
+
+
 class Config(BaseModel):
     ripe: RipeConfig | None = None
     radb: RadbConfig | None = None
+    arin: ArinConfig | None = None
 
 
 def load_config(path: Path) -> Config:

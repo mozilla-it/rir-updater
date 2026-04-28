@@ -4,8 +4,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from rir_updater.arin.client import ArinClient
 from rir_updater.config import load_config
 from rir_updater.credentials import (
+    get_arin_api_key,
     get_radb_mntner_password,
     get_radb_portal_auth,
     get_ripe_db_auth,
@@ -100,6 +102,23 @@ def _run(args, parser):
             for route in config.radb.routes:
                 result = client.sync_route(route)
                 print(f"{result}: radb route {route.prefix} {route.origin}")
+
+    if config.arin:
+        with ArinClient(
+            org_handle=config.arin.org_handle,
+            api_key=get_arin_api_key(config.arin.credentials.api_key),
+            dry_run=not args.commit,
+            use_test_env=not args.production,
+        ) as client:
+            for route in config.arin.routes:
+                result = client.sync_route(route)
+                print(f"{result}: arin route {route.prefix} {route.origin}")
+
+            if config.arin.roas:
+                counts = client.sync_roas(config.arin.roas)
+                print(
+                    f"ARIN ROAs: {counts['added']} added, {counts['deleted']} deleted"
+                )
 
 
 if __name__ == "__main__":

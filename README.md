@@ -1,6 +1,6 @@
 # rir-updater
 
-CLI tool for syncing route objects to RIPE NCC and RADb, and RPKI ROAs to RIPE.
+CLI tool for syncing route objects to RIPE NCC, ARIN, and RADb, and RPKI ROAs to RIPE and ARIN.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ uv sync
 
 ## Configuration
 
-Copy `config.example.yaml` and fill in your values. Both `ripe` and `radb` sections are optional — include only the registries you use.
+Copy `config.example.yaml` and fill in your values. All registry sections (`ripe`, `arin`, `radb`) are optional — include only the registries you use.
 
 ```yaml
 ripe:
@@ -29,6 +29,25 @@ ripe:
     test_db_password: "op://vault/item/test-password"  # optional
   sso_emails:
     - "admin@example.com"
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"
+  roas:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      max_length: 24
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      max_length: 32
+
+arin:
+  org_handle: "EXAMPLEORG-1"
+  credentials:
+    api_key: "op://vault/item/arin-api-key"
   routes:
     - prefix: "192.0.2.0/24"
       origin: "AS12345"
@@ -76,6 +95,14 @@ Secrets are fetched from 1Password via the `op` CLI. The `credentials` block in 
 | `test_db_username` | RIPE test DB username (optional, overrides `db_username` in test mode) |
 | `test_db_password` | RIPE test DB password (optional, overrides `db_password` in test mode) |
 
+### ARIN
+
+| Field | Used for |
+|-------|----------|
+| `api_key` | ARIN API key for all IRR and RPKI requests |
+
+The API key must be linked to a POC with authority over your organization's resources. Create one at ARIN Online → Settings → Security Info → Manage API Keys.
+
 ### RADb
 
 | Field | Used for |
@@ -102,7 +129,7 @@ uv run rir-updater config.yaml --production --commit
 uv run rir-updater config.yaml --setup-test
 ```
 
-RADb always runs against production — `--production` and `--setup-test` only affect the RIPE section.
+RADb always runs against production — `--production` and `--setup-test` only affect the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
 
 ### RIPE test database bootstrap
 

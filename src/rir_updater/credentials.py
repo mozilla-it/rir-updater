@@ -45,3 +45,8 @@ def get_radb_portal_auth(username_ref: str, password_ref: str) -> tuple[str, str
 def get_radb_mntner_password(password_ref: str) -> str:
     """Return the RADb mntner password used for object-level authorization."""
     return read_op(password_ref)
+
+
+def get_arin_api_key(key_ref: str) -> str:
+    """Return the ARIN API key used for all IRR and RPKI requests."""
+    return read_op(key_ref)
