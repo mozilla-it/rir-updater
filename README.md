@@ -116,20 +116,26 @@ References use the `op://vault/item/field` format. You must be signed in to the 
 ## Usage
 
 ```bash
-# Dry-run against the RIPE test database and RADb (default)
+# Dry-run all configured registries (test environments where applicable)
 uv run rir-updater config.yaml
 
-# Dry-run against RIPE production
-uv run rir-updater config.yaml --production
+# Dry-run a specific registry only
+uv run rir-updater config.yaml --registry arin
+uv run rir-updater config.yaml --registry ripe --registry radb
 
-# Apply changes to RIPE production and RADb
+# Apply changes to all registries in production
 uv run rir-updater config.yaml --production --commit
+
+# Apply changes to ARIN only (production)
+uv run rir-updater config.yaml --registry arin --production --commit
 
 # Set up the RIPE test database with objects replicated from production
 uv run rir-updater config.yaml --setup-test
 ```
 
-RADb always runs against production — `--production` and `--setup-test` only affect the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
+RADb always runs against production — `--production` only affects the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
+
+When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb.
 
 ### RIPE test database bootstrap
 
