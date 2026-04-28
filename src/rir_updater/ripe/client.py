@@ -355,9 +355,7 @@ One-time manual bootstrap required:
                 merged.append({"name": name, "value": value})
         return {
             "objects": {
-                "object": [
-                    {"type": obj_type, "attributes": {"attribute": merged}}
-                ]
+                "object": [{"type": obj_type, "attributes": {"attribute": merged}}]
             }
         }
 

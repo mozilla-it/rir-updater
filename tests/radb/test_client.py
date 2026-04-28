@@ -137,7 +137,10 @@ class TestSyncRoute:
                                 {"name": "remarks", "value": "Keep this"},
                                 {"name": "origin", "value": "AS64496"},
                                 {"name": "mnt-by", "value": "MAINT-AS64496"},
-                                {"name": "changed", "value": "old@example.com 20200101"},  # noqa: E501
+                                {
+                                    "name": "changed",
+                                    "value": "old@example.com 20200101",
+                                },  # noqa: E501
                                 {"name": "source", "value": "RADB"},
                             ]
                         },

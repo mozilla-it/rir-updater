@@ -16,7 +16,7 @@ _EXISTING_ROUTE_XML = (
     f"<originAS>AS64496</originAS>"
     f"<prefix>192.0.2.0/24</prefix>"
     f"<description/>"
-    f"<comment><line number=\"0\">Keep this</line></comment>"
+    f'<comment><line number="0">Keep this</line></comment>'
     f"<source>ARIN</source>"
     f"</route>"
 )
