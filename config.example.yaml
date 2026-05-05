@@ -1,14 +1,49 @@
+# rir-updater example configuration
+#
+# All three registry sections are optional — include only the ones you use.
+# Credential values are 1Password references (op://vault/item/field).
+# Run `op signin` before using this tool.
+
 ripe:
   maintainer: "MAINT-AS12345"
   credentials:
     db_username: "op://vault/item/username"
     db_password: "op://vault/item/password"
     rpki_api_key: "op://vault/item/rpki-api-key"
-    test_db_username: "op://vault/item/test-username"   # optional: overrides db_username for test DB
-    test_db_password: "op://vault/item/test-password"   # optional: overrides db_password for test DB
+    # Optional: separate credentials for the RIPE test DB (apps-test.db.ripe.net).
+    # If omitted, the production credentials above are used in test mode.
+    test_db_username: "op://vault/item/test-username"
+    test_db_password: "op://vault/item/test-password"
+  # SSO emails are added as auth entries on the test mntner when running --setup-test.
   sso_emails:
-    - "admin1@example.com"
-    - "admin2@example.com"
+    - "admin@example.com"
+  routes:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      description: "Example IPv4 prefix"
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      description: "Example IPv6 prefix"
+    # Set delete: true to remove an object from the registry instead of syncing it.
+    # When RADb mirroring is configured, deletions cascade to RADb automatically.
+    # - prefix: "198.51.100.0/24"
+    #   origin: "AS12345"
+    #   delete: true
+  roas:
+    - prefix: "192.0.2.0/24"
+      origin: "AS12345"
+      max_length: 24  # exact-match only; omit to default to the prefix length
+    - prefix: "2001:db8::/32"
+      origin: "AS12345"
+      max_length: 48  # allows more-specific announcements up to /48
+
+arin:
+  org_handle: "EXAMPLEORG-1"
+  credentials:
+    api_key: "op://vault/item/arin-api-key"
+    # Optional: OTE API key for testing against reg.ote.arin.net.
+    # If omitted, the production key above is used in test mode.
+    test_api_key: "op://vault/item/arin-ote-api-key"
   routes:
     - prefix: "192.0.2.0/24"
       origin: "AS12345"
@@ -22,27 +57,11 @@ ripe:
       max_length: 24
     - prefix: "2001:db8::/32"
       origin: "AS12345"
-
-arin:
-  org_handle: "EXAMPLEORG-1"
-  credentials:
-    api_key: "op://vault/item/arin-api-key"
-    test_api_key: "op://vault/item/arin-ote-api-key"   # optional: overrides api_key for OTE
-  routes:
-    - prefix: "192.0.2.0/24"
-      origin: "AS12345"
-      description: "Example IPv4 prefix"
-    - prefix: "2001:db8::/32"
-      origin: "AS12345"
-      description: "Example IPv6 prefix"
-  roas:                           # optional
-    - prefix: "192.0.2.0/24"
-      origin: "AS12345"
-      max_length: 24
-    - prefix: "2001:db8::/32"
-      origin: "AS12345"
       max_length: 32
 
+# When a radb section is present, every RIPE and ARIN route change is
+# automatically mirrored to RADb. Only list routes here that are not already
+# covered by the ripe or arin sections above — duplicates are skipped.
 radb:
   maintainer: "MAINT-AS12345"
   contact_email: "admin@example.com"
@@ -50,10 +69,8 @@ radb:
     portal_username: "op://vault/item/portal-username"
     portal_password: "op://vault/item/portal-password"
     mntner_password: "op://vault/item/mntner-password"
+  # Routes only managed in RADb (not present in the ripe or arin sections above).
   routes:
-    - prefix: "192.0.2.0/24"
+    - prefix: "203.0.113.0/24"
       origin: "AS12345"
-      description: "Example IPv4 prefix"
-    - prefix: "2001:db8::/32"
-      origin: "AS12345"
-      description: "Example IPv6 prefix"
+      description: "RADb-only prefix"
