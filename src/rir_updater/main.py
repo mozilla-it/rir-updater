@@ -156,6 +156,20 @@ def _run(args, parser):
                     return
 
                 summary.start_registry(label)
+
+                # Publish ROAs before route objects: RPKI-aware consumers (e.g.
+                # RADb) reject a route until a covering ROA exists, so the
+                # authorization must be published first.
+                if config.ripe.roas:
+                    counts = _try(
+                        summary,
+                        label,
+                        "ROAs",
+                        lambda: client.sync_roas(config.ripe.roas),
+                    )
+                    if counts is not None:
+                        summary.record_roas(label, counts["added"], counts["deleted"])
+
                 for route in config.ripe.routes:
                     result = _try(
                         summary,
@@ -184,16 +198,6 @@ def _run(args, parser):
                             )
                         mirrored_prefixes.add(route.prefix)
 
-                if config.ripe.roas:
-                    counts = _try(
-                        summary,
-                        label,
-                        "ROAs",
-                        lambda: client.sync_roas(config.ripe.roas),
-                    )
-                    if counts is not None:
-                        summary.record_roas(label, counts["added"], counts["deleted"])
-
         if config.arin and should_run("arin"):
             label = "ARIN (production)" if args.production else "ARIN (OTE)"
             creds = config.arin.credentials
@@ -209,6 +213,18 @@ def _run(args, parser):
                 use_test_env=use_test_env,
             ) as client:
                 summary.start_registry(label)
+
+                # Publish ROAs before route objects (see RIPE block above).
+                if config.arin.roas:
+                    counts = _try(
+                        summary,
+                        label,
+                        "ROAs",
+                        lambda: client.sync_roas(config.arin.roas),
+                    )
+                    if counts is not None:
+                        summary.record_roas(label, counts["added"], counts["deleted"])
+
                 for route in config.arin.routes:
                     result = _try(
                         summary,
@@ -236,16 +252,6 @@ def _run(args, parser):
                                 "RADb", radb_result, route.prefix, route.origin
                             )
                         mirrored_prefixes.add(route.prefix)
-
-                if config.arin.roas:
-                    counts = _try(
-                        summary,
-                        label,
-                        "ROAs",
-                        lambda: client.sync_roas(config.arin.roas),
-                    )
-                    if counts is not None:
-                        summary.record_roas(label, counts["added"], counts["deleted"])
 
         if radb_client and should_run("radb"):
             summary.start_registry("RADb")

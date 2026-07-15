@@ -1,7 +1,11 @@
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 import pytest
 
+from rir_updater.config import ROA, Config, RipeConfig, RipeCredentials, RouteObject
 from rir_updater.exceptions import ApiError, CredentialError
-from rir_updater.main import _try
+from rir_updater.main import _run, _try
 from rir_updater.summary import Summary
 
 
@@ -42,3 +46,56 @@ class TestTry:
         # Only ApiError is isolated; other errors must still abort the run.
         with pytest.raises(CredentialError):
             _try(s, "RADb", "a", boom)
+
+
+class TestRoaBeforeRoute:
+    """ROAs must be published before route objects (fix #2)."""
+
+    def test_ripe_syncs_roas_before_routes(self):
+        calls = []
+
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+
+        def rec_route(route):
+            calls.append("route")
+            return "created"
+
+        def rec_roas(roas):
+            calls.append("roas")
+            return {"added": 1, "deleted": 0}
+
+        client.sync_route.side_effect = rec_route
+        client.sync_roas.side_effect = rec_roas
+
+        cfg = Config(
+            ripe=RipeConfig(
+                maintainer="MAINT-AS64496",
+                credentials=RipeCredentials(
+                    db_username="op://v/i/u",
+                    db_password="op://v/i/p",
+                    rpki_api_key="op://v/i/k",
+                ),
+                routes=[RouteObject(prefix="2001:db8::/32", origin="AS64496")],
+                roas=[ROA(prefix="2001:db8::/32", origin="AS64496")],
+            )
+        )
+        args = SimpleNamespace(
+            config="ignored",
+            registries=None,
+            production=True,
+            commit=True,
+            setup_test=False,
+            setup_ote=False,
+        )
+
+        with (
+            patch("rir_updater.main.load_config", return_value=cfg),
+            patch("rir_updater.main.get_ripe_db_auth", return_value="auth"),
+            patch("rir_updater.main.get_ripe_rpki_key", return_value="key"),
+            patch("rir_updater.main.RipeClient", return_value=client),
+        ):
+            _run(args, MagicMock())
+
+        assert calls == ["roas", "route"]

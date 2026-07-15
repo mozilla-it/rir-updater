@@ -10,6 +10,19 @@ rename that heading to the version and date, and bump `version` in `pyproject.to
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-15
+
+### Changed
+- **ROAs are now published before route objects** within each registry. RPKI-aware
+  consumers (notably RADb) reject a route until a covering ROA exists, so the
+  authorization must be in place first. This only reorders operations within a run;
+  no behavior other than ordering changes.
+- **Dry-run ROA counts now reflect the real diff** against currently-published ROAs.
+  Previously a dry-run always reported the full desired set as "added" and never
+  reported deletions; it now fetches current ROAs (read-only) and reports the
+  actual added/deleted counts, skipping only the publish call. (RIPE; ARIN already
+  behaved this way.)
+
 ## [0.2.0] - 2026-07-15
 
 ### Fixed

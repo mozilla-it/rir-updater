@@ -161,7 +161,9 @@ uv run rir-updater config.yaml --setup-ote --commit  # apply
 
 RADb always runs against production — `--production` only affects the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
 
-When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb.
+When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb. Within each registry, **ROAs are published before route objects**, because RPKI-aware consumers (such as RADb) reject a route until a covering ROA exists.
+
+A dry-run reports the **real** ROA diff: it fetches the currently-published ROAs (read-only) and shows the actual number that would be added or deleted, rather than assuming everything is new.
 
 ### RIPE test database bootstrap
 
