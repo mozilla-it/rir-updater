@@ -48,8 +48,9 @@ def main():
     )
     args = parser.parse_args()
 
+    summary = None
     try:
-        _run(args, parser)
+        summary = _run(args, parser)
     except FileNotFoundError:
         print(f"error: config file not found: {args.config}", file=sys.stderr)
         sys.exit(1)
@@ -65,6 +66,24 @@ def main():
     except RirUpdaterError as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Per-object failures don't raise; they are collected and reported in the
+    # summary. Exit non-zero so callers/CI still see that something failed.
+    if summary is not None and summary.has_errors():
+        sys.exit(1)
+
+
+def _try(summary, registry, label, fn):
+    """Run fn(); on ApiError record it against (registry, label) and return None.
+
+    Isolates per-object failures so one bad object doesn't abort the whole run —
+    the remaining objects still sync and every failure is reported in the summary.
+    """
+    try:
+        return fn()
+    except ApiError as e:
+        summary.record_error(registry, label, str(e))
+        return None
 
 
 def _run(args, parser):
@@ -138,25 +157,42 @@ def _run(args, parser):
 
                 summary.start_registry(label)
                 for route in config.ripe.routes:
-                    if route.delete:
-                        result = client.delete_route(route)
-                    else:
-                        result = client.sync_route(route)
-                    summary.record_route(label, result, route.prefix, route.origin)
+                    result = _try(
+                        summary,
+                        label,
+                        route.prefix,
+                        lambda r=route: (
+                            client.delete_route(r) if r.delete else client.sync_route(r)
+                        ),
+                    )
+                    if result is not None:
+                        summary.record_route(label, result, route.prefix, route.origin)
                     if radb_client:
-                        radb_result = (
-                            radb_client.delete_route(route)
-                            if route.delete
-                            else radb_client.sync_route(route)
+                        radb_result = _try(
+                            summary,
+                            "RADb",
+                            route.prefix,
+                            lambda r=route: (
+                                radb_client.delete_route(r)
+                                if r.delete
+                                else radb_client.sync_route(r)
+                            ),
                         )
-                        summary.record_route(
-                            "RADb", radb_result, route.prefix, route.origin
-                        )
+                        if radb_result is not None:
+                            summary.record_route(
+                                "RADb", radb_result, route.prefix, route.origin
+                            )
                         mirrored_prefixes.add(route.prefix)
 
                 if config.ripe.roas:
-                    counts = client.sync_roas(config.ripe.roas)
-                    summary.record_roas(label, counts["added"], counts["deleted"])
+                    counts = _try(
+                        summary,
+                        label,
+                        "ROAs",
+                        lambda: client.sync_roas(config.ripe.roas),
+                    )
+                    if counts is not None:
+                        summary.record_roas(label, counts["added"], counts["deleted"])
 
         if config.arin and should_run("arin"):
             label = "ARIN (production)" if args.production else "ARIN (OTE)"
@@ -174,43 +210,67 @@ def _run(args, parser):
             ) as client:
                 summary.start_registry(label)
                 for route in config.arin.routes:
-                    if route.delete:
-                        result = client.delete_route(route)
-                    else:
-                        result = client.sync_route(route)
-                    summary.record_route(label, result, route.prefix, route.origin)
+                    result = _try(
+                        summary,
+                        label,
+                        route.prefix,
+                        lambda r=route: (
+                            client.delete_route(r) if r.delete else client.sync_route(r)
+                        ),
+                    )
+                    if result is not None:
+                        summary.record_route(label, result, route.prefix, route.origin)
                     if radb_client:
-                        radb_result = (
-                            radb_client.delete_route(route)
-                            if route.delete
-                            else radb_client.sync_route(route)
+                        radb_result = _try(
+                            summary,
+                            "RADb",
+                            route.prefix,
+                            lambda r=route: (
+                                radb_client.delete_route(r)
+                                if r.delete
+                                else radb_client.sync_route(r)
+                            ),
                         )
-                        summary.record_route(
-                            "RADb", radb_result, route.prefix, route.origin
-                        )
+                        if radb_result is not None:
+                            summary.record_route(
+                                "RADb", radb_result, route.prefix, route.origin
+                            )
                         mirrored_prefixes.add(route.prefix)
 
                 if config.arin.roas:
-                    counts = client.sync_roas(config.arin.roas)
-                    summary.record_roas(label, counts["added"], counts["deleted"])
+                    counts = _try(
+                        summary,
+                        label,
+                        "ROAs",
+                        lambda: client.sync_roas(config.arin.roas),
+                    )
+                    if counts is not None:
+                        summary.record_roas(label, counts["added"], counts["deleted"])
 
         if radb_client and should_run("radb"):
             summary.start_registry("RADb")
             for route in config.radb.routes:
                 if route.prefix in mirrored_prefixes:
                     continue  # already synced via mirroring
-                result = (
-                    radb_client.delete_route(route)
-                    if route.delete
-                    else radb_client.sync_route(route)
+                result = _try(
+                    summary,
+                    "RADb",
+                    route.prefix,
+                    lambda r=route: (
+                        radb_client.delete_route(r)
+                        if r.delete
+                        else radb_client.sync_route(r)
+                    ),
                 )
-                summary.record_route("RADb", result, route.prefix, route.origin)
+                if result is not None:
+                    summary.record_route("RADb", result, route.prefix, route.origin)
 
     finally:
         if radb_client:
             radb_client.close()
 
     summary.print_jira()
+    return summary
 
 
 def _setup_arin_ote(arin_config, creds, commit: bool) -> None:

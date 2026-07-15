@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from rir_updater.config import RouteObject
@@ -218,3 +219,55 @@ class TestDeleteRoute:
 
         with pytest.raises(ApiError, match="Authorization failed"):
             client.delete_route(IPV4_ROUTE)
+
+
+@patch("rir_updater.radb.client.time.sleep")
+class TestTransientRetry:
+    """RADb's API intermittently drops connections / returns 5xx (#5)."""
+
+    def test_get_retries_transport_error_then_succeeds(self, _sleep, client):
+        # First GET drops the connection, second succeeds with a 404.
+        client._http.get.side_effect = [
+            httpx.RemoteProtocolError("Server disconnected"),
+            MagicMock(status_code=404, is_error=False),
+        ]
+
+        assert client._get_existing_route(IPV4_ROUTE) is None
+        assert client._http.get.call_count == 2
+
+    def test_get_retries_on_5xx(self, _sleep, client):
+        client._http.get.side_effect = [err(503, "unavailable"), ok(json_data={})]
+
+        client._get_existing_route(IPV4_ROUTE)
+        assert client._http.get.call_count == 2
+
+    def test_transport_error_exhausts_and_raises(self, _sleep, client):
+        client._http.get.side_effect = httpx.RemoteProtocolError("down")
+
+        with pytest.raises(ApiError, match="network error"):
+            client._get_existing_route(IPV4_ROUTE)
+        assert client._http.get.call_count == 3  # _MAX_ATTEMPTS
+
+    def test_create_is_not_retried_on_transport_error(self, _sleep, client):
+        # Object does not exist, so create is attempted.
+        client._http.get.return_value = MagicMock(status_code=404, is_error=False)
+        client._http.post.side_effect = httpx.RemoteProtocolError("drop")
+
+        with pytest.raises(ApiError, match="network error"):
+            client.sync_route(IPV4_ROUTE)
+        # POST attempted exactly once — no blind retry that could duplicate.
+        assert client._http.post.call_count == 1
+
+    def test_create_recheck_recognizes_committed_object(self, _sleep, client):
+        # 1st GET (existence check): 404 -> attempt create.
+        # POST drops the connection (but committed server-side).
+        # 2nd GET (recheck): object now exists -> treat as created.
+        client._http.get.side_effect = [
+            MagicMock(status_code=404, is_error=False),
+            ok(json_data=_EXISTING_ROUTE),
+        ]
+        client._http.post.side_effect = httpx.RemoteProtocolError("drop")
+
+        assert client.sync_route(IPV4_ROUTE) == "created"
+        assert client._http.post.call_count == 1
+        assert client._http.get.call_count == 2

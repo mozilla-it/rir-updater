@@ -1,3 +1,4 @@
+import time
 from datetime import date
 
 import httpx
@@ -6,6 +7,11 @@ from rir_updater.config import RouteObject
 from rir_updater.exceptions import ApiError
 
 BASE_URL = "https://api.radb.net/api"
+
+# RADb's API intermittently drops connections and returns 5xx. Retry idempotent
+# requests a few times with exponential backoff before giving up.
+_MAX_ATTEMPTS = 3
+_BACKOFF_BASE = 0.5
 
 
 def _raise_for_status(resp: httpx.Response, context: str) -> None:
@@ -41,6 +47,11 @@ class RadbClient:
         self._dry_run = dry_run
         self._http = httpx.Client(
             headers={"Accept": "application/json"},
+            # RADb selects output format via ?format= and defaults to "text"
+            # (RPSL), ignoring the Accept header. Without this every response
+            # body is RPSL and resp.json() raises JSONDecodeError. Client-level
+            # params merge with per-request params (e.g. ?password=).
+            params={"format": "json"},
             auth=(portal_username, portal_password),
             timeout=30,
         )
@@ -53,6 +64,32 @@ class RadbClient:
 
     def __exit__(self, *_):
         self.close()
+
+    def _send(self, method: str, url: str, *, retry: bool = True, **kwargs):
+        """Send an HTTP request, retrying transient failures on idempotent verbs.
+
+        Retries `httpx.TransportError` (connection drops, timeouts) and 5xx
+        responses up to `_MAX_ATTEMPTS` with exponential backoff. Non-idempotent
+        creates pass `retry=False` — a retried POST could duplicate an object
+        whose response was merely lost, so the caller handles that case by
+        re-checking existence instead.
+        """
+        verb = getattr(self._http, method.lower())
+        last_exc = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                resp = verb(url, **kwargs)
+            except httpx.TransportError as e:
+                last_exc = e
+                if retry and attempt < _MAX_ATTEMPTS - 1:
+                    time.sleep(_BACKOFF_BASE * (2**attempt))
+                    continue
+                raise ApiError(f"network error ({method} {url}): {e}") from e
+            if retry and resp.status_code >= 500 and attempt < _MAX_ATTEMPTS - 1:
+                time.sleep(_BACKOFF_BASE * (2**attempt))
+                continue
+            return resp
+        raise ApiError(f"network error ({method} {url}): {last_exc}")
 
     def _object_type(self, prefix: str) -> str:
         return "route6" if ":" in prefix else "route"
@@ -89,7 +126,7 @@ class RadbClient:
         }
 
     def _get_existing_route(self, route: RouteObject) -> dict | None:
-        resp = self._http.get(self._route_key_url(route))
+        resp = self._send("GET", self._route_key_url(route))
         if resp.status_code == 404:
             return None
         _raise_for_status(resp, f"fetch radb route {route.prefix}")
@@ -138,7 +175,8 @@ class RadbClient:
         if self._dry_run:
             return "dry-run-delete"
         asn = route.origin.upper()
-        resp = self._http.delete(
+        resp = self._send(
+            "DELETE",
             self._route_key_url(route),
             params={"password": self._mntner_password},
         )
@@ -158,13 +196,27 @@ class RadbClient:
         params = {"password": self._mntner_password}
         if existing is not None:
             body = self._merge_route_body(existing, route)
-            resp = self._http.put(self._route_key_url(route), json=body, params=params)
+            resp = self._send(
+                "PUT", self._route_key_url(route), json=body, params=params
+            )
             _raise_for_status(resp, f"update radb route {route.prefix} {asn}")
             return "updated"
         else:
             body = self._route_body(route)
-            resp = self._http.post(
-                self._route_base_url(route), json=body, params=params
-            )
+            # Creates are not idempotent: a POST whose response is lost may have
+            # committed server-side (observed with RADb). Don't blind-retry;
+            # on a transport drop, re-check existence before deciding.
+            try:
+                resp = self._send(
+                    "POST",
+                    self._route_base_url(route),
+                    json=body,
+                    params=params,
+                    retry=False,
+                )
+            except ApiError:
+                if self._get_existing_route(route) is not None:
+                    return "created"
+                raise
             _raise_for_status(resp, f"create radb route {route.prefix} {asn}")
             return "created"

@@ -171,6 +171,23 @@ aut-num objects cannot be created in the test DB via the API — all aut-nums re
 
 `--setup-test` only replicates prerequisite objects. Run without `--setup-test` afterwards to sync route objects and ROAs.
 
+## Error handling and exit codes
+
+Each object (a route/route6, or the ROA set for a registry) is synced independently. If one object fails with an API error, the failure is reported and the run continues with the remaining objects — a single failure never aborts the whole batch or leaves you unsure which objects were processed.
+
+Failures appear in the summary as `!` lines, for example:
+
+```
+! radb route6 2001:db8::/32 FAILED: create radb route 2001:db8::/32 AS64496 failed (400): ...
+```
+
+The command exits **non-zero** if any object failed, even though the run completed; a fully successful run (or a clean dry-run) exits zero. Because syncs are idempotent, you can simply re-run the same config to retry only the objects that still need changes.
+
+## RADb API behavior
+
+- **Output format** — RADb's REST API defaults to `text` (RPSL) and ignores the `Accept` header, so the tool requests JSON explicitly with a `?format=json` query parameter on every request.
+- **Transient failures** — RADb's API intermittently drops connections or returns 5xx. Idempotent requests are retried automatically with exponential backoff. A create whose response is lost is verified by re-checking existence (not blindly retried), so an object is never duplicated.
+
 ## Development
 
 ```bash
