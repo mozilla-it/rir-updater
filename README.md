@@ -197,3 +197,31 @@ uv run ruff check .   # lint
 uv run ruff format .  # format
 uv run pytest         # test
 ```
+
+## Contributing
+
+This project uses a **trunk-based** workflow. `main` is the single long-lived
+branch; there is no `develop` branch.
+
+1. **Branch off `main`** for every change:
+   ```bash
+   git switch main && git pull
+   git switch -c my-change
+   ```
+2. **Make your change** and keep it green locally:
+   ```bash
+   uv run ruff check . && uv run ruff format --check . && uv run pytest
+   ```
+3. **Push the branch and open a pull request into `main`.**
+4. **CI runs automatically** on the PR (`.github/workflows/ci.yml` runs the lint,
+   format check, and tests above). It must pass.
+5. **Get one approving review.** `main` is protected: direct pushes are blocked,
+   and a PR needs at least one approval before it can merge. You cannot approve
+   your own PR.
+6. **Merge with squash or rebase** — `main` requires linear history, so merge
+   commits are not allowed. Squash is preferred for a single, self-contained
+   change.
+
+Branch protection is enforced by a repository ruleset on `main`
+(required PR + review, required `ci` status check, linear history, no force-push,
+no deletion). Repository admins may bypass these rules when necessary.
