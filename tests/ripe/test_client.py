@@ -298,14 +298,30 @@ class TestSyncROAs:
         with pytest.raises(ApiError, match="fetch current ROAs"):
             client.sync_roas([IPV4_ROA])
 
-    def test_dry_run_does_not_call_api(self, client):
+    def test_dry_run_reads_state_but_does_not_publish(self, client):
+        # Dry-run fetches current ROAs (read-only) but never POSTs.
         client._dry_run = True
+        client._rpki_http.get.return_value = ok(json_data=[])
 
         counts = client.sync_roas([IPV4_ROA])
 
-        client._rpki_http.get.assert_not_called()
+        client._rpki_http.get.assert_called_once()
         client._rpki_http.post.assert_not_called()
-        assert counts["added"] == 1
+        assert counts == {"added": 1, "deleted": 0}
+
+    def test_dry_run_reports_real_diff(self, client):
+        # ROA already published → dry-run must report 0 added, not len(desired).
+        client._dry_run = True
+        client._rpki_http.get.return_value = ok(
+            json_data=[
+                {"prefix": "192.0.2.0/24", "asn": "AS64496", "maximalLength": 24}
+            ]
+        )
+
+        counts = client.sync_roas([IPV4_ROA])
+
+        client._rpki_http.post.assert_not_called()
+        assert counts == {"added": 0, "deleted": 0}
 
 
 SSO_EMAILS = ["admin@example.com"]

@@ -161,7 +161,9 @@ uv run rir-updater config.yaml --setup-ote --commit  # apply
 
 RADb always runs against production — `--production` only affects the RIPE and ARIN sections. ARIN uses its OT&E environment in test mode (`reg.ote.arin.net`) and production otherwise.
 
-When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb.
+When no `--registry` flags are given, all registries present in the config are updated. Updates run in order: RIPE → ARIN → RADb. Within each registry, **ROAs are published before route objects**, because RPKI-aware consumers (such as RADb) reject a route until a covering ROA exists.
+
+A dry-run reports the **real** ROA diff: it fetches the currently-published ROAs (read-only) and shows the actual number that would be added or deleted, rather than assuming everything is new.
 
 ### RIPE test database bootstrap
 
@@ -170,6 +172,23 @@ The first time you use `--setup-test`, the mntner must be created manually via t
 aut-num objects cannot be created in the test DB via the API — all aut-nums require authorization from `TEST-DBM-MNT`, which is restricted to RIPE staff. `--setup-test` will warn and continue if aut-num replication fails.
 
 `--setup-test` only replicates prerequisite objects. Run without `--setup-test` afterwards to sync route objects and ROAs.
+
+## Error handling and exit codes
+
+Each object (a route/route6, or the ROA set for a registry) is synced independently. If one object fails with an API error, the failure is reported and the run continues with the remaining objects — a single failure never aborts the whole batch or leaves you unsure which objects were processed.
+
+Failures appear in the summary as `!` lines, for example:
+
+```
+! radb route6 2001:db8::/32 FAILED: create radb route 2001:db8::/32 AS64496 failed (400): ...
+```
+
+The command exits **non-zero** if any object failed, even though the run completed; a fully successful run (or a clean dry-run) exits zero. Because syncs are idempotent, you can simply re-run the same config to retry only the objects that still need changes.
+
+## RADb API behavior
+
+- **Output format** — RADb's REST API defaults to `text` (RPSL) and ignores the `Accept` header, so the tool requests JSON explicitly with a `?format=json` query parameter on every request.
+- **Transient failures** — RADb's API intermittently drops connections or returns 5xx. Idempotent requests are retried automatically with exponential backoff. A create whose response is lost is verified by re-checking existence (not blindly retried), so an object is never duplicated.
 
 ## Development
 

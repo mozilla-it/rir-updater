@@ -412,13 +412,16 @@ One-time manual bootstrap required:
         """
         desired = {self._roa_key(r) for r in roas}
         managed_prefixes = {r.prefix for r in roas}
-        current = set() if self._dry_run else self._get_current_roas()
+        # Fetch current ROAs even in dry-run (a read-only GET) so the reported
+        # diff reflects reality — otherwise dry-run always claims len(desired)
+        # added and 0 deleted regardless of what is already published.
+        current = self._get_current_roas()
         current_managed = {r for r in current if r[0] in managed_prefixes}
         to_add = desired - current_managed
         to_delete = current_managed - desired
 
         if self._dry_run:
-            return {"added": len(desired), "deleted": 0}
+            return {"added": len(to_add), "deleted": len(to_delete)}
 
         if not to_add and not to_delete:
             return {"added": 0, "deleted": 0}
