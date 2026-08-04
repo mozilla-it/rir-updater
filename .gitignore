@@ -2,6 +2,22 @@
 config.yaml
 config.test.yaml
 
+# Operator-specific scripts, job configs, and working notes (not part of the
+# universal tool). See local/CLAUDE.md.
+/local/
+
+# Operating-system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -211,6 +227,9 @@ marimo/_lsp/
 __marimo__/
 
 # Claude AI
+#   CLAUDE.md (guidance for AI coding agents working in this repo) is
+#   intentionally committed as public documentation — it documents the
+#   architecture and conventions and doubles as an example of how to brief an
+#   agent on a codebase. Only session state and personal overrides stay local.
 .claude/
-CLAUDE.md
 CLAUDE.local.md
