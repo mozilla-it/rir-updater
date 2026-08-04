@@ -10,6 +10,13 @@ rename that heading to the version and date, and bump `version` in `pyproject.to
 
 ## [Unreleased]
 
+### Security
+- Bumped the transitive `idna` dependency `3.13` → `3.18` to resolve
+  CVE-2026-45409 (GHSA-65pc-fj4g-8rjx), a denial-of-service in `idna.encode()`
+  on specially crafted long inputs. The tool only encodes fixed RIR API
+  hostnames, so practical exposure was negligible, but the pin is updated to
+  clear the advisory.
+
 ## [0.3.0] - 2026-07-15
 
 ### Changed
